@@ -1,0 +1,21 @@
+source,scraped_at,url,sku,title,book_id,work_id,rating,text,spoiler,created_at,updated_at,likes,comments,shelf,tags,reviewer,reviewer_id,reviewer_url,reviewer_is_author,reviewer_followers,reviewer_reviews,sort,page,position,mode,data_source
+goodreads.com,2026-09-27T08:08:26.366762+00:00,https://www.goodreads.com/review/show/900000001,900000001,"The Hobbit, or There and Back Again",5907,1540236,5,"A second placeholder review.
+
+With a second paragraph.",False,2026-09-27T05:42:12.081000Z,2026-09-27T06:11:56.860000Z,0,0,read,,Reviewer 1,100000001,https://www.goodreads.com/user/show/100000001-reviewer-1,False,0,30,newest,1,1,reviews,graphql
+goodreads.com,2026-09-27T08:08:26.367025+00:00,https://www.goodreads.com/review/show/900000002,900000002,"The Hobbit, or There and Back Again",5907,1540236,2,Placeholder review text standing in for a reader's words.,False,2026-09-27T03:09:53.326000Z,2026-09-27T03:37:43.412000Z,0,0,read,,Reviewer 2,100000002,https://www.goodreads.com/user/show/100000002-reviewer-2,False,0,15,newest,1,2,reviews,graphql
+goodreads.com,2026-09-27T08:08:26.367098+00:00,https://www.goodreads.com/review/show/900000003,900000003,"The Hobbit, or There and Back Again",5907,1540236,5,"A second placeholder review.
+
+With a second paragraph.",False,2026-09-26T21:12:19.393000Z,2026-09-26T21:30:19.620000Z,0,0,read,,Reviewer 3,100000003,https://www.goodreads.com/user/show/100000003-reviewer-3,False,0,10,newest,1,3,reviews,graphql
+goodreads.com,2026-09-27T08:08:26.367152+00:00,https://www.goodreads.com/review/show/900000004,900000004,"The Hobbit, or There and Back Again",5907,1540236,5,Placeholder review text standing in for a reader's words.,False,2026-09-26T20:52:10.057000Z,2026-09-26T20:52:15.200000Z,0,0,read,,Reviewer 4,100000004,https://www.goodreads.com/user/show/100000004-reviewer-4,False,0,1,newest,1,4,reviews,graphql
+goodreads.com,2026-09-27T08:08:26.367224+00:00,https://www.goodreads.com/review/show/900000005,900000005,"The Hobbit, or There and Back Again",5907,1540236,3,"A second placeholder review.
+
+With a second paragraph.",False,2026-09-26T20:40:22.451000Z,2026-09-26T20:40:29.591000Z,0,0,read,,Reviewer 5,100000005,https://www.goodreads.com/user/show/100000005-reviewer-5,False,0,60,newest,1,5,reviews,graphql
+goodreads.com,2026-09-27T08:08:26.367279+00:00,https://www.goodreads.com/review/show/900000006,900000006,"The Hobbit, or There and Back Again",5907,1540236,3,Placeholder review text standing in for a reader's words.,False,2026-09-26T20:15:19.474000Z,2026-09-26T22:01:39.614000Z,6,0,read,placeholder-tag,Reviewer 6,100000006,https://www.goodreads.com/user/show/100000006-reviewer-6,False,16,47,newest,1,6,reviews,graphql
+goodreads.com,2026-09-27T08:08:26.367337+00:00,https://www.goodreads.com/review/show/900000007,900000007,"The Hobbit, or There and Back Again",5907,1540236,5,"A second placeholder review.
+
+With a second paragraph.",False,2026-09-26T20:01:50.736000Z,2026-09-26T20:03:04.305000Z,0,0,read,,Reviewer 7,100000007,https://www.goodreads.com/user/show/100000007-reviewer-7,False,1,38,newest,1,7,reviews,graphql
+goodreads.com,2026-09-27T08:08:26.367384+00:00,https://www.goodreads.com/review/show/900000008,900000008,"The Hobbit, or There and Back Again",5907,1540236,5,Placeholder review text standing in for a reader's words.,False,2026-09-26T19:26:13.692000Z,2026-09-26T19:27:14.474000Z,0,0,read,,Reviewer 8,100000008,https://www.goodreads.com/user/show/100000008-reviewer-8,False,0,33,newest,1,8,reviews,graphql
+goodreads.com,2026-09-27T08:08:26.367451+00:00,https://www.goodreads.com/review/show/900000009,900000009,"The Hobbit, or There and Back Again",5907,1540236,4,"A second placeholder review.
+
+With a second paragraph.",False,2026-09-26T19:23:23.253000Z,2026-09-27T02:26:40.295000Z,1,1,read,,Reviewer 9,100000009,https://www.goodreads.com/user/show/100000009-reviewer-9,False,3,43,newest,1,9,reviews,graphql
+goodreads.com,2026-09-27T08:08:26.367553+00:00,https://www.goodreads.com/review/show/900000010,900000010,"The Hobbit, or There and Back Again",5907,1540236,5,Placeholder review text standing in for a reader's words.,False,2026-09-26T18:38:17.400000Z,2026-09-26T18:42:46.188000Z,0,0,read,placeholder-tag,Reviewer 10,100000010,https://www.goodreads.com/user/show/100000010-reviewer-10,False,0,7,newest,1,10,reviews,graphql

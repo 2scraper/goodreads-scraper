@@ -1,0 +1,63 @@
+name: Site changed / API broke
+description: goodreads.com changed a page or its API and the parser no longer matches.
+labels: ["site-change"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most common way a scraper stops working, and it is worth
+        its own report because the fix is different from a code bug:
+        something on goodreads.com moved.
+
+        Useful to know before filing: listings are read from the pages' own
+        schema.org microdata (and a search from its React payload), a book
+        from its Apollo cache, and reviews from the site's GraphQL API
+        (`product_parser.py` says which is which). A break is almost always
+        a renamed field, a page moving to a new renderer, or the API key
+        leaving the book page.
+
+  - type: dropdown
+    id: what_broke
+    attributes:
+      label: What stopped matching
+      options:
+        - The run stops with "The API refused this request (...)"
+        - 0 rows on a page that visibly has books on the site
+        - A specific column is null or wrong on every row
+        - Every run is blocked by aws-waf, even from a residential exit
+        - Pagination stops early or repeats rows
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: query
+    attributes:
+      label: Mode and query
+      description: The mode and flags (or --url), and the country your exit IP was in.
+      placeholder: "--mode book --url https://www.goodreads.com/book/show/5907 (exit IP: DE residential)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: |
+        Whichever of these you can get. A capture beats a description.
+
+        - The response as the parser saw it: re-run with
+          `--dump-html page.html` and attach it (HTML, or JSON in --mode
+          reviews). Remove the `apiKey` value and any `authenticity_token`.
+        - For a column problem: the value you got, and the value the site shows.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: >-
+        Whether it reproduces on a second engine, whether it reproduces from a
+        different country, and when it last worked.

@@ -1,0 +1,153 @@
+# One real run of each mode against goodreads.com, daily. tests.yml
+# (deliberately) never touches the site.
+#
+# No secrets are needed, and that is the point of running it: the README's
+# central claim is "no key, no proxy, no account", and an ungated scheduled
+# canary is that sentence under test every morning (CLAUDE.md §21, §24).
+# Every mode ran from a datacentre VPS when this repo was written
+# (2026-09-27), AWS WAF's challenge included, which the browser passes by
+# itself; a GitHub runner is a datacentre address too. If a run is refused
+# for the runner's address, set the proxy secret and the canary uses it with
+# no edit here:
+#
+#     gh secret set GOODREADS_PROXY --repo 2scraper/goodreads-scraper
+#
+# It goes through the ENVIRONMENT, not a --proxy line: env_config.py reads
+# exactly that variable, an unset secret arrives as an empty string which the
+# loader treats as unset, and the credential never reaches a command line.
+#
+# Not here: /search. It refuses a headless browser (HTTP 403), and a canary
+# that needs a virtual display to pass tests the display, not the site.
+
+name: canary
+
+on:
+  schedule:
+    # 05:40 UTC. Not on the hour: every scheduled workflow fires at :00.
+    - cron: "40 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    name: ${{ matrix.mode }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The Best Books Ever list: 100 books a page, three pages; the
+          # floor leaves room for a repeat dropped by the dedupe.
+          - mode: list
+            args: "--url https://www.goodreads.com/list/show/1.Best_Books_Ever"
+            pages: 3
+            floor: 280
+          # The Lord of the Rings series (15 works), its first five books'
+          # own pages. One LISTING page, so pages_completed is 1.
+          - mode: book
+            args: "--mode book --url https://www.goodreads.com/series/66175-the-lord-of-the-rings --max-books 5"
+            pages: 1
+            floor: 5
+          # The Hobbit's reviews, newest first: three pages of 30 through the
+          # site's GraphQL API, with the key read off the book page.
+          - mode: reviews
+            args: "--mode reviews --url https://www.goodreads.com/book/show/5907.The_Hobbit --sort newest"
+            pages: 3
+            floor: 85
+    env:
+      GOODREADS_PROXY: ${{ secrets.GOODREADS_PROXY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-playwright.txt
+          playwright install --with-deps chromium
+
+      # >= 3 pages, because with one page pagination is never exercised (§11).
+      - name: Run
+        id: run
+        run: |
+          set +e   # `run:` is `bash -e`; without this a non-zero exit aborts
+                   # the step before the echo below records it.
+          python playwright_scraper.py ${{ matrix.args }} --pages ${{ matrix.pages }} \
+            --out canary --format both --dump-html canary_dump.html
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Interpret
+        run: |
+          code="${{ steps.run.outputs.exit_code }}"
+          echo "exit code: $code"
+          case "$code" in
+            0) ;;
+            3) echo "::error::Blocked. If the log names aws-waf, the WAF's challenge did not clear by itself: it showed its CAPTCHA, or refused the runner. If it names http-403, the runner's address was refused. Either way, set the GOODREADS_PROXY secret (see the header)."; exit 1 ;;
+            4) echo "::error::Zero rows from a listing that is never empty. The page shape has moved; see canary_dump.html."; exit 1 ;;
+            5) echo "::error::The data never arrived, or the API REFUSED the parameters (the log names its own complaint)."; exit 1 ;;
+            6) echo "::error::Partial: a page or a book failed after others succeeded. See the sidecar's pages_failed."; exit 1 ;;
+            *) echo "::error::Unexpected exit $code."; exit 1 ;;
+          esac
+
+      - name: Assert
+        run: |
+          python - <<'EOF'
+          import json, sys
+          meta = json.load(open("canary.meta.json"))
+          rows = json.load(open("canary.json"))
+          mode, floor, pages = "${{ matrix.mode }}", ${{ matrix.floor }}, ${{ matrix.pages }}
+          problems = []
+          if meta["status"] != "complete":
+              problems.append("status %r (%s)" % (meta["status"], meta["stop_reason"]))
+          if meta["pages_completed"] != pages:
+              problems.append("pages_completed %r, not %d" % (meta["pages_completed"], pages))
+          if len(rows) < floor:
+              problems.append("%d rows, floor %d" % (len(rows), floor))
+          if mode != "book" and not meta.get("total_results"):
+              problems.append("no total_results in the sidecar")
+          if {r["mode"] for r in rows} != {mode}:
+              problems.append("rows name modes %r" % {r["mode"] for r in rows})
+          pairs = [(r["page"], r["position"]) for r in rows]
+          if len(set(pairs)) != len(pairs):
+              problems.append("page+position is not unique")
+          if mode in ("list", "book"):
+              rated = sum(1 for r in rows if isinstance(r["ratings_count"], int) and r["ratings_count"] > 0)
+              if rated != len(rows):
+                  problems.append("%d of %d books have a rating count" % (rated, len(rows)))
+          if mode == "list" and meta.get("capped_by_site") is not True:
+              problems.append("the list no longer reports that it caps what it serves")
+          if mode == "book":
+              for r in rows:
+                  dist = [r["rating_%d" % i] for i in range(1, 6)]
+                  if None in dist or abs(sum(dist) - r["ratings_count"]) > r["ratings_count"] * 0.01:
+                      problems.append("book %s: distribution %r does not sum to %r" % (r["sku"], dist, r["ratings_count"]))
+                  if not r["genres"]:
+                      problems.append("book %s has no genres" % r["sku"])
+          if mode == "reviews":
+              if any(not r["reviewer"] or not r["created_at"] for r in rows):
+                  problems.append("a review without its reviewer or date")
+              dates = [r["created_at"] for r in rows]
+              if dates != sorted(dates, reverse=True):
+                  problems.append("--sort newest is not newest first")
+          if problems:
+              print("canary FAILED: " + "; ".join(problems))
+              sys.exit(1)
+          print("canary OK: %d %s rows of %s, complete" % (len(rows), mode, meta.get("total_results")))
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canary-${{ matrix.mode }}
+          path: |
+            canary.json
+            canary.csv
+            canary.meta.json
+            canary_dump.html*
+            canary_page*_debug.html
+          if-no-files-found: ignore
