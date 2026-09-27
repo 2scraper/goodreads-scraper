@@ -6,7 +6,9 @@
 # canary is that sentence under test every morning (CLAUDE.md §21, §24).
 # Every mode ran from a datacentre VPS when this repo was written
 # (2026-09-27), AWS WAF's challenge included, which the browser passes by
-# itself; a GitHub runner is a datacentre address too. If a run is refused
+# itself; a GitHub runner is a datacentre address too. Its first dispatch
+# (2026-09-27, no proxy, region not checked) was complete in all three
+# modes: 300 list rows, 5 books, 90 reviews. If a run is refused
 # for the runner's address, set the proxy secret and the canary uses it with
 # no edit here:
 #

@@ -257,6 +257,10 @@ reviews in, a throttle, and a book run from a listing with one book refused.
 
 The [canary](.github/workflows/canary.yml) runs a real scrape of each mode
 daily **with no secrets**, which is what keeps "no account needed" honest.
+Its first dispatch (2026-09-27, a GitHub-hosted runner, no proxy, region not
+checked) came back complete in all three modes: 300 of 79,610 books on the
+Best Books Ever list, 5 books of the Lord of the Rings series with their
+full pages, and 90 of 95,092 reviews of The Hobbit.
 
 ---
 
