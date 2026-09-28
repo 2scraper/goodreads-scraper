@@ -7,6 +7,26 @@ toolkit can: a patch release means **fixes**, not that every flag and
 default is frozen. A default that changes behaviour for an existing user is
 said so at the top of its release notes.
 
+## [0.1.1] — 2026-09-28
+
+### Measured
+
+- The Scraping Browser API (`--cdp-endpoint`) run live through a
+  `country-us` profile: Playwright and pyppeteer, all three modes and a
+  search, 8 of 8 runs complete with identical rows. It serves `/search`,
+  which refuses a local headless browser. 0.1.0's README said this path had
+  not been run; it now has.
+
+### Changed
+
+- The offline suite's Scraping Browser fixture is now a goodreads.com book
+  page fetched over `--cdp-endpoint` (16 scripts injected by the auto-solve
+  extension, `amazon_waf` among them) rather than a sibling repo's capture.
+- The check that the AWS WAF markers stay silent on that page now counts the
+  markers as raw substrings too. The previous form passed on the page's own
+  asset references alone, whatever the markers were: a planted `amazon_waf`
+  marker left it green.
+
 ## [0.1.0] — 2026-09-27
 
 First release. Three modes over goodreads.com's own pages and its front
