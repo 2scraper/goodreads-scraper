@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "goodreads-scraper"
-version = "0.1.0"
+version = "0.1.1"
 description = "goodreads.com scraper: Listopia lists, author books, search, shelves and series; full book pages; and every community review through the site's own GraphQL API (Playwright, Selenium or pyppeteer)."
 readme = "README.md"
 license = "MIT"

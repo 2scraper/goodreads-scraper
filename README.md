@@ -179,9 +179,15 @@ One key, four separately-billed products ([2captcha.com](https://2captcha.com)):
   address. AWS WAF scores an address by its request rate, and
   `--concurrency` without a pool sends N times the rate from one.
 * **The Scraping Browser API** (`--cdp-endpoint`): a remote browser you do
-  not run. One live connection per `pid`, so `--concurrency` is ignored with
-  it. **Not run live for this release**: no current profile was available
-  (a profile's credentials last about a day).
+  not run, with a chosen exit country. One live connection per `pid`, so
+  `--concurrency` is ignored with it. Run live on 2026-09-28 through a
+  `country-us` profile: Playwright and pyppeteer, all three modes plus a
+  search, **8 of 8 runs complete**, the two engines' rows identical in
+  identical order. It also serves `/search`, which a local headless browser
+  is refused, so it is the way to run searches on a server with no virtual
+  display. One pyppeteer landing came back unrecognised once and was served
+  on the retry (not reproduced in 3 more runs). Selenium refuses a
+  credentialled endpoint with exit 2, as designed.
 * **Fingerprints** (`--fingerprint`): a consistent device identity for a
   local browser. Run live on 2026-09-27: a US fingerprint, a book page,
   the WAF's challenge cleared in 1.0 s. Ignored with `--cdp-endpoint`,

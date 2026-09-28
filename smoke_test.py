@@ -120,8 +120,7 @@ def check_fixture_corpus_is_real_and_scrubbed():
                 "search_legacy", "search_p2", "search_p999", "search_none",
                 "shelf_p1", "series", "book_hobbit", "book_dune", "book_missing",
                 "reviews_p1", "reviews_p2", "reviews_fr_1star", "reviews_xx",
-                "reviews_401", "reviews_bad_sort", "waf_challenge",
-                "cdp_extension_injection"}
+                "reviews_401", "reviews_bad_sort", "waf_challenge", "cdp_book"}
     missing = expected - set(FIXTURES)
     check("every fixture the suite uses is in fixtures_generated.json",
           not missing, "missing %s" % sorted(missing))
@@ -424,9 +423,21 @@ def check_markers_do_not_match_a_good_page_or_the_extension():
     them) into every page, and the set must score zero on that WITHOUT any
     strip."""
     import product_parser as P
-    html = fx("cdp_extension_injection")
-    check("the fixture really carries the amazon_waf hunter (not vacuous)", "amazon_waf" in html)
-    equal("no AWS WAF marker fires on the extension's injection", P.detect_bot_challenge(html), None)
+    html = fx("cdp_book")
+    check("the CDP fixture really carries the extension's hunters (not vacuous)",
+          html.count("chrome-extension://") >= 10 and "amazon_waf" in html
+          and "cf-turnstile" in html and "<captcha-widgets" in html)
+    equal("no AWS WAF marker fires on a page the Scraping Browser served",
+          P.detect_bot_challenge(html), None)
+    # The line above would pass on the own-asset guard alone (a served page
+    # references gr-assets.com), whatever the markers were: a planted
+    # "amazon_waf" marker left it green. So the SET is checked directly
+    # too, as a raw substring count, which is what §24 asks for.
+    equal("...and not one marker even OCCURS in it (the set, not the guard)",
+          [m for m in P.AWS_WAF_MARKERS if m in html], [])
+    equal("...and it classifies as the book it is", P.detect_page_state(
+        html, 200, fx_url("cdp_book")), "content")
+    equal("...and parses to it", _rows("cdp_book")[0].sku, "5907")
     for name in ("list_p1", "search_p2", "shelf_p1", "series", "book_hobbit", "author_p999"):
         equal("no marker fires on a served page (%s)" % name, P.detect_bot_challenge(fx(name)), None)
     check("the WAF page itself IS caught (the markers are not dead)",

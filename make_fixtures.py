@@ -95,11 +95,13 @@ SOURCES = {
 # caught in the second before its script reloads it). Cut when present.
 OPTIONAL = {
     "waf_challenge": ("waf_challenge.html", GR + "/book/show/5907", 0, "waf", None),
-    # The Scraping Browser's auto-solve extension injects the same captcha
-    # hunters into EVERY page it loads, whatever the site (§24). This capture
-    # of that injection was taken over --cdp-endpoint in binance-scraper on
-    # 2026-09-24 and is reused as is: the markers here must score zero on it.
-    "cdp_extension_injection": ("cdp_extension_tags.html", GR + "/book/show/5907", 0, "raw", 200),
+    # A book page fetched over --cdp-endpoint (2026-09-28, a country-us
+    # profile). The Scraping Browser's auto-solve extension injects the same
+    # captcha hunters into EVERY page it loads (§24): 16 scripts here,
+    # amazon_waf among them, plus a `<captcha-widgets>` mount. Cut like any
+    # book page, with the injected tags kept verbatim; the markers must score
+    # zero on it WITHOUT any strip.
+    "cdp_book": ("cdp_book_5907.html", GR + "/book/show/5907.The_Hobbit", None, "cdp", 200),
 }
 
 
@@ -242,6 +244,14 @@ def _cut_waf(html: str) -> str:
     return re.sub(r'"(key|iv|context)"\s*:\s*"[^"]*"', r'"\1":"PLACEHOLDER"', html)
 
 
+_EXT_TAG_RE = re.compile(r'<script[^>]*chrome-extension://[^>]*>\s*</script>|<captcha-widgets[^>]*>\s*</captcha-widgets>')
+
+
+def _cut_cdp(html: str) -> str:
+    """A book page cut as usual, with what the extension injected kept."""
+    return _cut_book(html).replace("</head>", "".join(_EXT_TAG_RE.findall(html)) + "</head>", 1)
+
+
 def _scrub_problems(fixture: str) -> list:
     problems = []
     if HEX32.search(fixture):
@@ -275,6 +285,8 @@ def _compare(orig, cut, kind, url, status) -> list:
         diffs.append("state %s != %s" % (s1, s2))
     if kind in ("raw", "waf"):
         return diffs
+    if kind == "cdp":
+        kind = "book"
     r1 = [asdict(r) for r in P.parse_page(orig, q, 1)]
     r2 = [asdict(r) for r in P.parse_page(cut, q, 1)]
     if len(r2) > len(r1):
@@ -304,6 +316,7 @@ CUTTERS = {
     "notfound": lambda h, k: _doc(_title(h), "<h1>Page not found</h1>"),
     "none": lambda h, k: _doc(_title(h), "<div>No results.</div>"),
     "waf": lambda h, k: _cut_waf(h), "raw": lambda h, k: h,
+    "cdp": lambda h, k: _cut_cdp(h),
 }
 
 
