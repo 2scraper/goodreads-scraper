@@ -1520,6 +1520,61 @@ def check_no_test_mutates_the_working_tree():
     check("the suite itself changed nothing in the working tree", not changed, repr(changed))
 
 
+def _retries_validation_problems():
+    """Every shipped --retries flag must go through page_flow.attempts.
+
+    With `--retries 0` the load loop never runs, nothing is fetched, and the
+    engine reports the browser's blank page as a result. This
+    reads the SOURCE of every entry point rather than a hand-kept list, so a
+    new engine that declares the flag with a plain int is caught the day it is
+    added, and it also CALLS the validator rather than trusting its name.
+
+    scraper_api_client.py is out of scope on purpose: it counts EXTRA attempts
+    (`retries + 1`), so 0 is legal there and means one try.
+    """
+    import argparse as _ap
+    import ast as _ast
+    import importlib as _il
+    import pathlib as _pl
+
+    root = _pl.Path(__file__).resolve().parent
+    pf = _il.import_module("page_flow")
+    problems, seen = [], 0
+    for path in sorted(root.glob("*.py")):
+        if path.name in ("smoke_test.py", "scraper_api_client.py"):
+            continue
+        tree = _ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in _ast.walk(tree):
+            if not (isinstance(node, _ast.Call)
+                    and getattr(node.func, "attr", "") == "add_argument"
+                    and node.args and isinstance(node.args[0], _ast.Constant)
+                    and node.args[0].value == "--retries"):
+                continue
+            seen += 1
+            kind = next((_ast.unparse(k.value) for k in node.keywords if k.arg == "type"), None)
+            want = "attempts" if path.name == "page_flow.py" else "page_flow.attempts"
+            if kind != want:
+                problems.append("%s:%d declares --retries with type=%s, expected %s"
+                                % (path.name, node.lineno, kind, want))
+    if not seen:
+        problems.append("found no --retries flag in any entry point, so this check "
+                        "would pass for the wrong reason")
+    for bad in (0, -1, "x"):
+        try:
+            pf.attempts(bad)
+        except _ap.ArgumentTypeError:
+            continue
+        problems.append("page_flow.attempts accepted %r" % (bad,))
+    if pf.attempts(1) != 1 or pf.attempts("3") != 3:
+        problems.append("page_flow.attempts rejects a valid count")
+    return problems
+
+
+def check_retries_is_validated_in_every_entry_point():
+    problems = _retries_validation_problems()
+    check("--retries is validated in every entry point, so 0 is a usage error", not problems, "; ".join(problems))
+
+
 CHECKS = [v for k, v in sorted(globals().items()) if k.startswith("check_")]
 
 

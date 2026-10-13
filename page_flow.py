@@ -1070,3 +1070,48 @@ def cdp_should_retry(error_text: str) -> bool:
         return False
     return ("profile_locked" in text or " 500" in text or "HTTP 500" in text
             or "did not return within" in text)
+
+
+# ---------------------------------------------------------------------------
+# --retries
+# ---------------------------------------------------------------------------
+import argparse as _argparse  # noqa: E402  (kept beside its only user)
+
+
+def attempts(value) -> int:
+    """argparse `type=` for --retries. Rejects anything below 1.
+
+    WHY THIS IS A USAGE ERROR AND NOT A CLAMP. The page-load loop is
+    `for attempt in range(1, retries + 1)`, so `--retries 0` makes its body
+    unreachable: nothing is fetched, and the engine then judges whatever the
+    browser holds — `about:blank`, 39 bytes of
+    `<html><head></head><body></body></html>` — and reports a block or an
+    empty result in a few dozen milliseconds. That is a confident, fast,
+    plausible answer to a question nobody asked.
+
+    Measured on 2026-10-13 against sleepnumber-scraper, from an address the
+    site genuinely does refuse, so the conclusion even looked right:
+
+        --retries 0   exit 3, 39 bytes, 36 ms    <- never left the process
+        --retries 1   exit 3, 923 bytes, 116 ms  <- the real CloudFront 403
+
+    A network round trip does not finish in 36 ms. Three third-party audits of
+    the 2scraper scrapers have now run `--retries 0`, read that output, and
+    reported a working scraper as broken or a site as unreachable.
+
+    The flag counts ATTEMPTS, not re-tries, so a caller who writes 0 almost
+    certainly means "do not retry", which is 1. Clamping would hide the
+    mistake; saying so ends the ambiguity.
+    """
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise _argparse.ArgumentTypeError(
+            f"--retries must be an integer, not {value!r}")
+    if number < 1:
+        raise _argparse.ArgumentTypeError(
+            f"--retries must be at least 1, not {number}. It counts ATTEMPTS, "
+            f"not re-tries, so --retries 1 means 'try once and do not retry'. "
+            f"With 0 the load loop never runs, nothing is fetched, and the "
+            f"engine reports the browser's blank page as a result.")
+    return number
