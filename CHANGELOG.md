@@ -9,6 +9,8 @@ said so at the top of its release notes.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-15
+
 > **Behaviour changes:**
 >
 > * **A page buys at most one paid CAPTCHA solve, however many times it is
