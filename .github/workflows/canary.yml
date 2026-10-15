@@ -121,6 +121,15 @@ jobs:
               problems.append("no total_results in the sidecar")
           if {r["mode"] for r in rows} != {mode}:
               problems.append("rows name modes %r" % {r["mode"] for r in rows})
+          # Core columns the parser fills on every row of every capture: a
+          # null here means the parser broke, whatever the row count says.
+          core = {"list": ("sku", "title", "author"),
+                  "book": ("sku", "title", "author", "work_id"),
+                  "reviews": ("sku", "reviewer", "created_at")}[mode]
+          for col in core:
+              missing = sum(1 for r in rows if r.get(col) in (None, "", []))
+              if missing:
+                  problems.append("%d of %d rows have no %s" % (missing, len(rows), col))
           pairs = [(r["page"], r["position"]) for r in rows]
           if len(set(pairs)) != len(pairs):
               problems.append("page+position is not unique")
