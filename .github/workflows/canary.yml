@@ -3,7 +3,7 @@
 #
 # No secrets are needed, and that is the point of running it: the README's
 # central claim is "no key, no proxy, no account", and an ungated scheduled
-# canary is that sentence under test every morning (CLAUDE.md §21, §24).
+# canary is that sentence under test every morning.
 # Every mode ran from a datacentre VPS when this repo was written
 # (2026-09-27), AWS WAF's challenge included, which the browser passes by
 # itself; a GitHub runner is a datacentre address too. Its first dispatch
@@ -73,7 +73,7 @@ jobs:
           pip install -r requirements.txt -r requirements-playwright.txt
           playwright install --with-deps chromium
 
-      # >= 3 pages, because with one page pagination is never exercised (§11).
+      # >= 3 pages, because with one page pagination is never exercised.
       - name: Run
         id: run
         run: |
@@ -87,11 +87,16 @@ jobs:
         run: |
           code="${{ steps.run.outputs.exit_code }}"
           echo "exit code: $code"
+          # A served page that stated rows and parsed to none is named on its
+          # own: it is this repo's parser that broke, not the site's listing.
+          if [ -f canary.meta.json ] && grep -q '"stop_reason": "parser_found_nothing"' canary.meta.json; then
+            echo "::error::parser_found_nothing: a served page stated rows and the parser read none. The page shape has moved; see canary_page*_debug.html."; exit 1
+          fi
           case "$code" in
             0) ;;
             3) echo "::error::Blocked. If the log names aws-waf, the WAF's challenge did not clear by itself: it showed its CAPTCHA, or refused the runner. If it names http-403, the runner's address was refused. Either way, set the GOODREADS_PROXY secret (see the header)."; exit 1 ;;
             4) echo "::error::Zero rows from a listing that is never empty. The page shape has moved; see canary_dump.html."; exit 1 ;;
-            5) echo "::error::The data never arrived, or the API REFUSED the parameters (the log names its own complaint)."; exit 1 ;;
+            5) echo "::error::The data never arrived, the API REFUSED the parameters, or page 1 stated rows and parsed to none (parser_found_nothing). The log names which."; exit 1 ;;
             6) echo "::error::Partial: a page or a book failed after others succeeded. See the sidecar's pages_failed."; exit 1 ;;
             *) echo "::error::Unexpected exit $code."; exit 1 ;;
           esac
@@ -104,6 +109,8 @@ jobs:
           rows = json.load(open("canary.json"))
           mode, floor, pages = "${{ matrix.mode }}", ${{ matrix.floor }}, ${{ matrix.pages }}
           problems = []
+          if meta["stop_reason"] == "parser_found_nothing":
+              problems.append("parser_found_nothing: a served page stated rows and parsed to none")
           if meta["status"] != "complete":
               problems.append("status %r (%s)" % (meta["status"], meta["stop_reason"]))
           if meta["pages_completed"] != pages:

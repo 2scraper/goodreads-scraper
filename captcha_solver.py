@@ -6,12 +6,10 @@ Shared helper used by all three scrapers (Playwright / Selenium / Puppeteer).
 Detection runs after EVERY page navigation in the main loop of all three
 scrapers, regardless of what URL was requested (category hub, product page,
 sign-in, checkout, anything) — this is deliberate, not scoped to any one
-page. If Transfermarkt renders a reCAPTCHA/Turnstile challenge anywhere —
-this fires. Live research for this repo (2026-09-10, one proxied fetch each
-of a ranking page, a player profile, a squad page and a transfer list, all
-served without any challenge or 403) found none, but that is a much smaller
-sample than the family's other members ran before writing this note — see
-the closing section of this file for what that does and does not license.
+page. If goodreads.com renders a reCAPTCHA/Turnstile challenge anywhere,
+this fires. None has been observed on this site: what it serves is AWS WAF,
+whose challenge action a browser passes by itself and whose CAPTCHA action
+is read by `detect_aws_waf` below.
 
 Flow:
   1. Both detectors run and are reconciled (see reconcile_detections) to decide
@@ -99,7 +97,7 @@ class CaptchaChallenge:
     page_url: str = ""
     # AWS WAF only. Its task needs three values that all live together in
     # `window.gokuProps` on the challenge page, plus the two script URLs the
-    # page loads. Unlike Cloudflare Turnstile (§19 of the family notes),
+    # page loads. Unlike Cloudflare Turnstile,
     # nothing has to be intercepted at runtime to get them: AWS WAF prints
     # all of it into the served HTML, so a static read is enough.
     iv: Optional[str] = None
@@ -140,8 +138,8 @@ class CaptchaChallenge:
                      running it. No widget, nothing to show a human.
 
         Both carry `window.gokuProps`, which is why reading the props alone
-        cannot tell them apart. `captcha.js` can. Measured on
-        www.transfermarkt.com 2026-09-17: challenge-action pages came back
+        cannot tell them apart. `captcha.js` can. Measured on another AWS
+        WAF site, 2026-09-17: challenge-action pages came back
         with challengeScript present and captchaScript absent, and the
         captcha-action pages had both.
         """
@@ -151,7 +149,7 @@ class CaptchaChallenge:
     def has_captcha_widget(self) -> bool:
         """Is there a widget on this page for a solver to work on?
 
-        Section 19's rule: "unsolvable" is a property of a PAGE, not of a
+        "Unsolvable" is a property of a PAGE, not of a
         vendor, and it means the page carries no widget. A challenge-action
         page carries none, so sending it to a solver buys a token for a
         puzzle that was never rendered -- measured at $0.00145 a time, since
@@ -182,10 +180,11 @@ AWS_WAF_COOKIE = "aws-waf-token"
 def detect_aws_waf(html: str, page_url: str = "") -> Optional[CaptchaChallenge]:
     """An AWS WAF CAPTCHA challenge read out of served HTML, or None.
 
-    Measured on www.transfermarkt.com 2026-09-16: the site sits behind AWS
-    WAF on CloudFront, and a plain datacentre-IP request is answered with
-    this challenge -- HTTP 405, `x-amzn-waf-action: captcha`, a 2331-byte
-    body -- on most attempts.
+    Measured on another site behind AWS WAF on CloudFront, 2026-09-16: a
+    plain datacentre-IP request was answered with this challenge -- HTTP
+    405, `x-amzn-waf-action: captcha`, a 2331-byte body -- on most
+    attempts. goodreads.com has served its challenge action, not this one,
+    in every run of this repo so far.
 
     Everything the solver needs is in the served markup, so unlike the
     Cloudflare Turnstile case this family documents, no init script and no
@@ -917,36 +916,16 @@ solve_recaptcha_v3 = solve_recaptcha
 # ===========================================================================
 # What is deliberately NOT here
 # ===========================================================================
-# No first-party image captcha or custom widget is ported here: nothing in
-# this family's other members' bespoke solvers (a JPEG-of-distorted-text
-# form is one example) was ever observed on Transfermarkt, and porting one
-# on spec would be dead code with no fixture to test it against.
-#
-# What was measured, on 2026-09-10 from this repo's own build/test
-# environment: neither a direct `requests` call nor a local Playwright
-# browser could reach www.transfermarkt.com at all — both failed at the
-# TCP/TLS layer, and a plain `requests.get` through the sandbox's own egress
-# proxy came back with the proxy's OWN "403 Forbidden" on the CONNECT
-# tunnel, never reaching the site. That is this sandbox's outbound
-# allowlist refusing the destination, not Transfermarkt refusing the
-# request — confirmed by ruling it out, not assumed. A PROXIED fetch of the
-# same URLs (through 2captcha's own fetch infrastructure, which sits
-# outside this sandbox) returned normal 200 pages every time with no
-# challenge and no captcha markers. So the only live evidence this repo has
-# is: Transfermarkt served every page it was asked for, without a captcha,
-# over a working proxied path. What was NOT established is how the site
-# treats a bare datacentre IP with no proxy at all, or what a real user's
-# browser sees on a residential connection — this repo's build sandbox
-# cannot test either. Do not port the OTHER family members' "datacentre
-# addresses get refused" conclusion onto Transfermarkt without measuring it
-# here; it was true for them and is simply unknown for this site. See
+# No first-party image captcha or custom widget is ported here: none has
+# been observed on goodreads.com, and porting one on spec would be dead code
+# with no fixture to test it against. What this site has served in every run
+# so far is AWS WAF; see detect_aws_waf above and
 # product_parser.detect_bot_challenge for how a real captcha, once observed,
 # would be told apart from a network-level refusal.
 #
-# The reCAPTCHA / hCaptcha / Turnstile machinery above IS kept, and that is a
+# The reCAPTCHA detection and solving above IS kept, and that is a
 # deliberate asymmetry rather than an inconsistency. Detection stays broad
 # because which challenge a visitor meets depends on the exit country and on
 # what the address has been doing — a narrow list is how a challenge gets
-# reported as an empty page months later. A solver for a challenge this site
-# has never been observed to serve is dead code; a DETECTOR for one is cheap
-# insurance. See the family note in CLAUDE.md.
+# reported as an empty page months later. A DETECTOR for a challenge this
+# site has never been observed to serve is cheap insurance.

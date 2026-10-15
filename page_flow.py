@@ -2,7 +2,7 @@
 page_flow.py
 ------------
 The retry / solve / blocked decision, as DATA rather than as three copies of
-an if-chain (CLAUDE.md §1), and the fetch loop the three engines share.
+an if-chain, and the fetch loop the three engines share.
 
 goodreads.com answers this repo's requests in nine ways, and they want seven
 different responses:
@@ -25,8 +25,8 @@ Three copies of that triage across three engines would drift, and the drift
 would be silent: one engine reporting exit 3 where its twin reports exit 0
 on the same response.
 
-Nothing here imports a browser, and **no JavaScript crosses this boundary**
-(§1). Each engine spells its fetch() in its own driver's dialect.
+Nothing here imports a browser, and **no JavaScript crosses this boundary**.
+Each engine spells its fetch() in its own driver's dialect.
 """
 
 import copy
@@ -52,8 +52,8 @@ log = logging.getLogger("page_flow")
 
 # How long one fetch() may take before the engine gives up on it. A 100-
 # review GraphQL page arrived in well under a second (2026-09-27). The bound
-# exists because a browser fetch() has no timeout of its own, and CLAUDE.md
-# §8 requires every remote call to have one.
+# exists because a browser fetch() has no timeout of its own, and every remote
+# call here has to be bounded.
 FETCH_TIMEOUT_MS = 30_000
 
 # How long to wait at the SAME exit after a 429/503 before trying again. No
@@ -80,7 +80,7 @@ def classify(html: Optional[str], status: Optional[int] = None,
     The argument ORDER is the contract: every engine calls
     `classify(html, status, url, waf_action)`. A sibling repo shipped
     `classify(html, url=...)` in two of three engines against a callee that
-    took `status` second, and both crashed on their first fetch (§17).
+    took `status` second, and both crashed on their first fetch.
     `smoke_test.py` binds every engine's call against this signature for
     that reason.
     """
@@ -109,7 +109,7 @@ STATE_POLICY = {
     "challenge":    {"retry": True,  "solve": True,  "blocked": True,  "parse": False},
     # Rate limited. The retry happens at the same exit after a wait
     # (THROTTLE_*). NOT counted as blocked: calling a throttle a block
-    # reports exit 3 for a page that was about to come back (§24).
+    # reports exit 3 for a page that was about to come back.
     "throttled":    {"retry": True,  "solve": False, "blocked": False, "parse": False},
     # HTTP 403. Headless Chromium on /search got this with a 39-byte body,
     # 3 of 3, while headful was served 3 of 3 (2026-09-27).
@@ -137,7 +137,7 @@ def should_parse(state: str) -> bool:
 
 
 # Whether a blocked page is worth re-fetching at all. CONSULTED by every
-# engine, so setting it False really does stop the retry loop (§17).
+# engine, so setting it False really does stop the retry loop.
 RETRY_ON_BLOCKED = True
 
 # How many times to re-fetch a blocked page when there is no proxy pool to
@@ -150,6 +150,38 @@ BLOCK_RETRIES_WITHOUT_POOL = 1
 # a challenge this run can pass, and a second solve is a second charge for
 # the same answer.
 SOLVES_PER_PAGE = 1
+
+
+class SolveBudget:
+    """The paid-solve allowance for ONE page, shared by every solve call site.
+
+    A page can reach the solver more than once: on its first navigation, on
+    each re-fetch after a refusal (from a fresh browser or a different exit),
+    and, on a reviews run, on the landing that reads the API key. Each of
+    those used to start a fresh `range(SOLVES_PER_PAGE)`, so with no proxy
+    pool one page bought two solves and with a pool of four it bought four.
+    One object per page, checked BEFORE each purchase and never reset by a
+    retry or a rotation, is what makes the limit a limit. A fresh exit is a
+    reason to fetch again, not a fresh allowance.
+    """
+
+    def __init__(self, limit: int = None):
+        self.limit = SOLVES_PER_PAGE if limit is None else limit
+        self.spent = 0
+
+    def allows(self) -> bool:
+        return self.spent < self.limit
+
+    def spend(self, solve: Callable[[], bool]) -> bool:
+        """Call `solve` if the allowance has room; False when it has none.
+        Counted before the call, because a solver can charge for an answer
+        and still report failure."""
+        if not self.allows():
+            log.info("This page's paid-solve allowance (%d) is spent; not "
+                     "buying another.", self.limit)
+            return False
+        self.spent += 1
+        return bool(solve())
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +206,7 @@ def concurrency_limit(cdp_endpoint: Optional[str]) -> Optional[int]:
 
     The Scraping Browser API allows ONE live connection per profile, so N
     workers sharing a `pid` collide with `profile_locked`. Several `pid`s,
-    one run each, is the way to parallelise that path (§7).
+    one run each, is the way to parallelise that path.
     """
     return 1 if cdp_endpoint else None
 
@@ -220,6 +252,8 @@ def refusal_advice(state: str, url: str = "", headless: bool = False) -> str:
 
 def stop_reason_for(outcome) -> str:
     """The run's stop_reason when `outcome` is the page that ended it."""
+    if getattr(outcome, "parse_failed", False):
+        return "parser_found_nothing"
     if getattr(outcome, "rejected", None):
         return "api_rejected"
     if getattr(outcome, "blocked_by", None):
@@ -284,7 +318,7 @@ def build_query(args, error: Callable[[str], None]) -> Query:
     if args.concurrency > 1 and query.mode == "reviews":
         error("--concurrency cannot apply to --mode reviews: the feed is "
               "walked by the cursor each page returns, so page N's address "
-              "does not exist until page N-1 has been read (§18).")
+              "does not exist until page N-1 has been read.")
     return query
 
 
@@ -303,7 +337,7 @@ def query_summary(query: Query) -> dict:
 
 
 def merge_outcomes(outcomes: List, key: str = "sku") -> List:
-    """Rows of `outcomes` in PAGE order, duplicates dropped (§8)."""
+    """Rows of `outcomes` in PAGE order, duplicates dropped."""
     rows, seen = [], set()
     for oc in sorted(outcomes, key=lambda o: o.page_num):
         fresh = dedupe_by_key(oc.products, seen, key=key)
@@ -320,7 +354,7 @@ def finish(args, query: Query, outcomes: List, stop_reason: str,
     """Merge the pages in PAGE order, write the output, return the exit code.
 
     One implementation for the three engines, so the merge order, the
-    dedupe and the sidecar cannot differ between them (§6). `listing` is
+    dedupe and the sidecar cannot differ between them. `listing` is
     phase A of a book run started from a listing: its pages are what
     `pages_requested` describes, and a listing page that failed is a
     failed page of the run.
@@ -339,7 +373,7 @@ def finish(args, query: Query, outcomes: List, stop_reason: str,
         # A listing states far more than it serves: a list says 79,607
         # books and serves 100 pages of 100. "complete" then means "every
         # page the site will serve", which is not the whole listing, and the
-        # sidecar says which (§21).
+        # sidecar says which.
         per = {"list": 100, "author": 30, "search": 20, "shelf": 50,
                "series": 100}[query.kind]
         reachable = (available or 1) * per
@@ -352,7 +386,7 @@ def finish(args, query: Query, outcomes: List, stop_reason: str,
         # identically on two runs; sorted by title, 739 and 52. The union of
         # the two orderings was exactly 791. So a repeat is not a listing
         # moving under the run: the site's paging over tied sort keys shows
-        # some books twice and the same number of others NEVER (§21:
+        # some books twice and the same number of others NEVER:
         # "complete" is not "exhaustive").
         log.warning("%d book(s) appeared on more than one page, so the site "
                     "never served %d others under this ordering. Another "
@@ -429,7 +463,7 @@ def cookie_domain(host: Optional[str], html: Optional[str] = None) -> str:
 # waiting out a throttle, rotating on a refusal, reading the API key off the
 # book page, and parsing what came back. The three engines differ only in
 # HOW they ask their driver, so each passes in an object with these
-# operations and no JavaScript crosses this boundary (§1):
+# operations and no JavaScript crosses this boundary:
 #
 #     ops.goto(url)        -> (status, waf_header). Raises TransportError.
 #     ops.document_text()  -> the current document's markup
@@ -442,7 +476,7 @@ def cookie_domain(host: Optional[str], html: Optional[str] = None) -> str:
 #     ops.proxy_failure(text) -> the driver's proxy-error name in text, or ""
 #
 # One copy of the loop is how the three engines agree on exit codes and on
-# whether a run spends money by construction rather than by discipline (§6).
+# whether a run spends money by construction rather than by discipline.
 
 
 class TransportError(Exception):
@@ -455,7 +489,7 @@ class PageOutcome:
 
     Collected per page and merged afterwards, in page order, rather than
     folded into shared state as the loop goes, so the output cannot depend
-    on which page happened to finish first (§8).
+    on which page happened to finish first.
     """
     page_num: int
     url: str
@@ -477,11 +511,15 @@ class PageOutcome:
     past_end: bool = False
     # A reviews page with no cursor after it: the feed ended here.
     last_page: bool = False
+    # A served page that states rows exist at this position (its own total
+    # and page count) and parsed to none: this repo's parser, not the
+    # listing, is what came up empty.
+    parse_failed: bool = False
 
     @property
     def ok(self) -> bool:
         return (not self.load_failed and self.blocked_by is None
-                and self.rejected is None)
+                and self.rejected is None and not self.parse_failed)
 
 
 # The columns the site filled on EVERY record of every capture, per mode.
@@ -497,13 +535,17 @@ CORE_FIELDS = {
 }
 
 
-def settle(ops, url: str, status: Optional[int], waf: Optional[str]) -> str:
+def settle(ops, url: str, status: Optional[int], waf: Optional[str],
+           budget: Optional[SolveBudget] = None) -> str:
     """Classify the document `ops` is on, letting a WAF challenge run first.
 
-    Solves at most SOLVES_PER_PAGE CAPTCHAs, because a CAPTCHA that survives
-    a solved token is not one this run can pass, and a second solve is a
-    second charge for the same answer (§23).
+    Any solve goes through `budget`, the page's one allowance, so however
+    many times a page is navigated it buys at most SOLVES_PER_PAGE. A
+    CAPTCHA that survives a solved token is not one this run can pass, and a
+    second solve is a second charge for the same answer.
     """
+    if budget is None:
+        budget = SolveBudget()
     text = ops.document_text()
     state = classify(text, status, url, waf)
     if status is None and state == "unknown" and len(text.strip()) < 2_000:
@@ -511,15 +553,15 @@ def settle(ops, url: str, status: Optional[int], waf: Optional[str]) -> str:
         # headless browser both reach it as an EMPTY document (the 403 is
         # 39 bytes: `<html><head></head><body></body></html>`), so an
         # empty document is waited on like the challenge it usually is,
-        # rather than retried as a parse failure (§24: read the ambiguous
-        # answer as the recoverable one).
+        # rather than retried as a parse failure: the ambiguous answer is
+        # read as the recoverable one.
         state = "challenge"
     if state != "challenge":
         return state
     # The WAF's challenge action computes a token and reloads the page by
     # itself, so let it run before judging it or paying for anything. The
     # document AFTER the reload is judged by what it holds: the status and
-    # header belonged to the interstitial it replaced (§26).
+    # header belonged to the interstitial it replaced.
     #
     # "unknown" keeps the wait going too. The first poll after the WAF's
     # reload often lands on the NEW page before it has finished arriving
@@ -532,8 +574,8 @@ def settle(ops, url: str, status: Optional[int], waf: Optional[str]) -> str:
         waited += CHALLENGE_POLL_MS
         state = _unsettled_state(ops.document_text(), url)
     if state == "challenge" and should_solve(state):
-        for _ in range(SOLVES_PER_PAGE):
-            if not ops.solve_captcha():
+        while budget.allows():
+            if not budget.spend(ops.solve_captcha):
                 break
             state = classify(ops.document_text(), None, url, None)
             if state != "challenge":
@@ -558,17 +600,19 @@ def _unsettled_state(text: str, url: str) -> str:
     return state
 
 
-def navigate(ops, url: str) -> Tuple[str, str, Optional[str]]:
+def navigate(ops, url: str, budget: Optional[SolveBudget] = None
+             ) -> Tuple[str, str, Optional[str]]:
     """Go to `url` and judge the document: (state, text, transport_error)."""
     try:
         status, waf = ops.goto(url)
     except TransportError as e:
         return "load_failed", "", str(e)
-    state = settle(ops, url, status, waf)
+    state = settle(ops, url, status, waf, budget)
     return state, ops.document_text(), None
 
 
-def land_for_reviews(ops, query: Query) -> Tuple[str, Optional[str]]:
+def land_for_reviews(ops, query: Query, budget: Optional[SolveBudget] = None
+                     ) -> Tuple[str, Optional[str]]:
     """Put the page on the book, and read the API key and ids off it.
 
     Returns (state, error). The key is the one the page hands every visitor
@@ -576,7 +620,7 @@ def land_for_reviews(ops, query: Query) -> Tuple[str, Optional[str]]:
     AppSync key expires; it is never stored anywhere but in memory.
     """
     url = landing_url(query)
-    state, text, err = navigate(ops, url)
+    state, text, err = navigate(ops, url, budget)
     if err:
         return "load_failed", err
     if state != "content":
@@ -596,6 +640,26 @@ def land_for_reviews(ops, query: Query) -> Tuple[str, Optional[str]]:
     return "content", None
 
 
+def page_states_rows(query: Query, page_num: int, total: Optional[int],
+                     pages: Optional[int]) -> bool:
+    """Whether the page's OWN arithmetic says page `page_num` holds rows.
+
+    The site's total is read from the page title or header, and its page
+    count from the pagination control, neither of which goes through the
+    row parser, so they can contradict it. A stated total of 0 (a reviews
+    filter that matches nothing) is an answer, not a statement of rows.
+    Shelves and series are one page to an anonymous visitor and their page
+    count of 1 is this repo's constant, not something the page said, so for
+    them only a stated total counts.
+    """
+    if total is not None:
+        return total > 0 and (pages is None or page_num <= pages)
+    if (query.mode == "list" and query.kind in ADDRESSABLE_KINDS
+            and pages is not None):
+        return page_num <= pages
+    return False
+
+
 def _core_field_warnings(rows: List, mode: str, page_num: int) -> None:
     for name in CORE_FIELDS.get(mode, ()):
         if not rows:
@@ -610,7 +674,7 @@ def _core_field_warnings(rows: List, mode: str, page_num: int) -> None:
 
 
 def _dump(args, page_num: int, text: str, pages: int) -> None:
-    """Write the exact response the parser was given, on success too (§9)."""
+    """Write the exact response the parser was given, on success too."""
     if not args.dump_html:
         return
     path = args.dump_html if pages == 1 else f"{args.dump_html}.page{page_num}"
@@ -627,12 +691,13 @@ def _save_debug(args, page_num: int, text: str) -> str:
     return path
 
 
-def _fetch_attempt(ops, query: Query, req, page_num: int) -> Tuple[str, str, Optional[str]]:
+def _fetch_attempt(ops, query: Query, req, page_num: int,
+                   budget: Optional[SolveBudget] = None) -> Tuple[str, str, Optional[str]]:
     """One try at `req`: (state, text, transport_error_or_None)."""
     if req.navigate:
-        return navigate(ops, req.url)
+        return navigate(ops, req.url, budget)
     if not ops.landed:
-        state, err = land_for_reviews(ops, query)
+        state, err = land_for_reviews(ops, query, budget)
         if err:
             return "load_failed", "", err
         if not ops.landed:
@@ -652,7 +717,8 @@ def _fetch_attempt(ops, query: Query, req, page_num: int) -> Tuple[str, str, Opt
 
 def fetch_one_page(ops, args, pool, query: Query, page_num: int,
                    mask: Callable[[str], str] = lambda s: s,
-                   pages: Optional[int] = None) -> PageOutcome:
+                   pages: Optional[int] = None,
+                   budget: Optional[SolveBudget] = None) -> PageOutcome:
     """Fetch and parse one page. Retries, rotations and debug dumps live here.
 
     Never raises for an EXPECTED failure. A timeout, a refusal, a WAF
@@ -663,6 +729,8 @@ def fetch_one_page(ops, args, pool, query: Query, page_num: int,
     pages = pages or args.pages
     req = request_for(query, page_num)
     outcome = PageOutcome(page_num=page_num, url=req.label)
+    # ONE allowance for every attempt, relaunch and rotation below.
+    budget = budget if budget is not None else SolveBudget()
 
     has_pool = bool(pool and len(pool) > 1)
     block_retries = 0 if not RETRY_ON_BLOCKED else (
@@ -678,14 +746,15 @@ def fetch_one_page(ops, args, pool, query: Query, page_num: int,
         attempt = 0
         while attempt < args.retries:
             attempt += 1
-            state, text, last_error = _fetch_attempt(ops, query, req, page_num)
+            state, text, last_error = _fetch_attempt(ops, query, req, page_num,
+                                                     budget)
             if last_error:
                 exit_failed = ops.proxy_failure(last_error) or None
                 if exit_failed:
                     break  # a different exit is the only thing that helps
             if state == "throttled" and throttles < THROTTLE_RETRIES:
                 throttles += 1
-                attempt -= 1  # a throttle wait spends its own budget (§24)
+                attempt -= 1  # a throttle wait spends its own budget
                 pause = THROTTLE_WAIT_S * throttles
                 log.warning("Rate-limited on page %d — waiting %.0fs at the "
                             "same exit (%d/%d).", page_num, pause, throttles,
@@ -778,6 +847,22 @@ def fetch_one_page(ops, args, pool, query: Query, page_num: int,
         query.cursors[page_num + 1] = cursor
         outcome.last_page = not cursor
     log.info("Parsed %d row(s) from page %d.", len(rows), page_num)
+    if (state == "content" and not rows
+            and page_states_rows(query, page_num, outcome.total_available,
+                                 outcome.pages_available)):
+        # Not an empty listing (exit 4) and not the end of one (complete):
+        # the page says it holds rows and none were read, so the page shape
+        # has moved. Through the not-complete rule in finish_run this is
+        # exit 5 with nothing gathered, exit 6 after earlier pages.
+        outcome.parse_failed = True
+        debug = _save_debug(args, page_num, text)
+        log.error("Page %d was served and states %s match(es) over %s "
+                  "page(s), but the parser read NO rows from it. That is a "
+                  "parser failure, not an empty listing: the page shape has "
+                  "moved. Saved to %s; please open an issue with it.",
+                  page_num, outcome.total_available, outcome.pages_available,
+                  debug)
+        return outcome
     if page_num == 1 and outcome.total_available is not None:
         log.info("The site reports %d match(es) — %s page(s) at this page "
                  "size.", outcome.total_available, outcome.pages_available)
@@ -785,7 +870,8 @@ def fetch_one_page(ops, args, pool, query: Query, page_num: int,
     return outcome
 
 
-def check_language(ops, args, query: Query) -> Optional[str]:
+def check_language(ops, args, query: Query,
+                   budget: Optional[SolveBudget] = None) -> Optional[str]:
     """Refuse a --review-language the book has no reviews in, before the
     first review request, with the list it does have. The API answers one
     with an EMPTY result, not an error, so without this a typo is an exit-4
@@ -793,7 +879,7 @@ def check_language(ops, args, query: Query) -> Optional[str]:
     if query.mode != "reviews" or not query.review_language:
         return None
     if not ops.landed:
-        land_for_reviews(ops, query)
+        land_for_reviews(ops, query, budget)
     if not ops.landed:
         return None  # the first page reports why
     if query.languages is None:
@@ -901,8 +987,11 @@ def run_pages(open_ops, close_ops, run_concurrently, args, pool,
     """
     ops_box = [open_ops()]
     listing: Optional[List[PageOutcome]] = None
+    # The language check lands on the book page 1 is read from, so a solve
+    # there is page 1's solve and comes out of page 1's allowance.
+    first_budget = SolveBudget()
     try:
-        refusal = check_language(ops_box[0], args, query)
+        refusal = check_language(ops_box[0], args, query, first_budget)
         if refusal:
             log.error("%s", refusal)
             return 2
@@ -930,7 +1019,8 @@ def run_pages(open_ops, close_ops, run_concurrently, args, pool,
                 ops_box[0] = open_ops()
 
         n = len(query.book_urls) if query.book_urls else args.pages
-        first = fetch_one_page(ops_box[0], args, pool, query, 1, mask, pages=n)
+        first = fetch_one_page(ops_box[0], args, pool, query, 1, mask, pages=n,
+                               budget=first_budget)
         outcomes = [first]
         if not first.ok and query.mode != "book":
             return finish(args, query, outcomes, stop_reason_for(first),
@@ -1015,7 +1105,7 @@ def worker_pool(pool, worker_index: int):
     """A private ProxyPool for one worker, starting at a different exit.
 
     Workers start on distinct exits and share no mutable state, so rotation
-    needs no lock (§7).
+    needs no lock.
     """
     if not pool:
         return None
@@ -1030,16 +1120,17 @@ def cdp_connect_hint(error_text: str) -> str:
 
     Two answers that want opposite fixes. Measured 2026-09-24 against four
     Scraping Browser endpoints left in sibling repos' .env files: all four
-    answered 401 Unauthorized, because a profile's credentials last about a
-    day. The message used to explain a 500 (a pid another run still holds)
+    answered 401 Unauthorized, because their credentials had expired. How
+    long a profile lasts varies; one endpoint was measured still working
+    after ten days, so the status, not an age, is the signal. The message used to explain a 500 (a pid another run still holds)
     whatever the status was, which sent the reader to wait for a run that
     did not exist.
     """
     if "401" in (error_text or ""):
         return ("HTTP 401: the endpoint's credentials were refused. A Scraping "
-                "Browser profile's credentials last about a day, so an "
-                "endpoint copied from an older .env has usually expired. "
-                "Get a fresh one from your 2Captcha dashboard.")
+                "Browser profile's credentials expire, so an endpoint "
+                "copied from an older .env may have expired. Get a fresh "
+                "one from your 2Captcha dashboard.")
     return ("A Scraping Browser profile allows ONE live connection at a time, "
             "so an HTTP 500 here usually means another run still holds this "
             "`pid`. Wait for it to finish, or use a different pid.")
@@ -1115,3 +1206,26 @@ def attempts(value) -> int:
             f"With 0 the load loop never runs, nothing is fetched, and the "
             f"engine reports the browser's blank page as a result.")
     return number
+
+
+def bounded(kind, minimum, flag: str):
+    """argparse `type=` for a numeric flag that has a floor.
+
+    A negative --delay reached `wait_ms` as a negative sleep, a negative
+    --proxy-block-retries silently meant "never rotate", and --pages 0 or
+    --concurrency 0 asked for nothing. Each is refused at parse time, as a
+    usage error (exit 2) that names the flag, in every entry point.
+    """
+    def check(value):
+        try:
+            number = kind(value)
+        except (TypeError, ValueError):
+            raise _argparse.ArgumentTypeError(
+                f"{flag} must be a{'n integer' if kind is int else ' number'}, "
+                f"not {value!r}")
+        if number < minimum:
+            raise _argparse.ArgumentTypeError(
+                f"{flag} must be at least {minimum}, not {value}")
+        return number
+    check.__name__ = kind.__name__  # argparse names the type in its errors
+    return check

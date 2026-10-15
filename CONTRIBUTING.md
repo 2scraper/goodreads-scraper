@@ -86,8 +86,8 @@ Then the rest of the presentation, in the order that matters:
    the claim the README makes. If a run is refused for the runner's
    address, the canary's `GOODREADS_PROXY` secret (an exit elsewhere) is
    the fix, with no workflow edit.
-2. The repo description, homepage and topics set (see the family notes on
-   what those should say).
+2. The repo description, homepage and topics set: the description names
+   the site and what it really publishes, the topics are what people search for.
 3. Only then the row in the org profile README — and check it with an
    ANONYMOUS request rather than your own logged-in browser. A row pointing
    at a private repo is a 404 for every visitor, which costs more trust than

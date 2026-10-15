@@ -90,6 +90,12 @@ each mode is committed: [list](sample_output.json), [book](sample_output_book.js
 [reviews](sample_output_reviews.json) (the reviews sample's reviewer names,
 ids and words are placeholders; everything else is as the run wrote it).
 
+In the CSV, a text cell that starts with `=`, `+`, `-`, `@`, a tab or a
+line break gets a leading `'`, so a spreadsheet shows it as text instead of
+running it as a formula (review text and shelf names are written by anyone).
+The JSON keeps the site's text unchanged, and the sidecar's
+`csv_cells_escaped` says how many cells differ.
+
 ---
 
 ## Six things about Goodreads that will look like bugs
@@ -221,8 +227,8 @@ Surveyed 2026-09-27:
 | 2 | bad usage, including a `--review-language` the book has no reviews in |
 | 3 | blocked: AWS WAF's challenge did not clear, or a 403; distinct from an empty listing |
 | 4 | zero rows: the listing has nothing in it, or the book id names no book |
-| 5 | the data never arrived: a timeout, a dead proxy, a refused API parameter, a remote API error |
-| 6 | partial: some pages (or, from a listing, some books) came back and some did not |
+| 5 | the data never arrived: a timeout, a dead proxy, a refused API parameter, a remote API error, or page 1 stated rows and the parser read none (`stop_reason: parser_found_nothing`) |
+| 6 | partial: some pages (or, from a listing, some books) came back and some did not, including a later page that stated rows and parsed to none |
 
 **A run that finds nothing writes nothing**, so a failure never replaces last
 night's good output with `[]`. `--allow-empty` is the opt-out.

@@ -1,7 +1,7 @@
 """
 product_parser.py
 -----------------
-Everything this repo knows about goodreads.com lives here (CLAUDE.md §1).
+Everything this repo knows about goodreads.com lives here.
 
 Three modes
 -----------
@@ -40,7 +40,7 @@ Measured 2026-09-27 from a datacentre address (netcup, AS197540):
 
 Every listing page is server-rendered, and three of them carry schema.org
 microdata (`itemtype="http://schema.org/Book"`), which is the anchor this
-parser uses: a standard, not a build-generated class (§4). None of the
+parser uses: a standard, not a build-generated class. None of the
 listing pages carries a JSON-LD block. The book page carries exactly one
 (`@type: Book`), and a much richer Apollo cache beside it.
 
@@ -69,7 +69,7 @@ Out-of-range pages answer 200 with a DIFFERENT page
     /shelf/show/fantasy?page=2 -> page 1 again, to an anonymous visitor
     /author/list/{id}?page=999 -> HTTP 404
 
-So every listing page is asked which page it SERVED (§23), and an answer
+So every listing page is asked which page it SERVED, and an answer
 that differs from the page requested is the end of the listing, not more
 data.
 """
@@ -160,7 +160,7 @@ class Query:
     # The page the url itself asks for (?page=N). A run started on page 3
     # calls it page 1 of the RUN and asks the site for page 3; the check
     # that the site served what was asked compares against the page the
-    # URL names, never the loop counter (§24).
+    # URL names, never the loop counter.
     start_page: int = 1
     # book mode from a listing: at most this many books (None: all found).
     max_books: Optional[int] = None
@@ -294,7 +294,7 @@ def kind_of(url: str) -> Optional[str]:
 def query_from_url(url: str) -> Tuple[Optional[Query], Optional[str]]:
     """The Query a url describes, or (None, why) for one this repo cannot
     read. The reason names what the url IS, never "not a Goodreads url"
-    when it is one (§5)."""
+    when it is one."""
     u = urlparse(url if "://" in url else "https://" + url)
     host = (u.hostname or "").lower()
     if host not in HOSTS:
@@ -377,11 +377,11 @@ def _clean_url(url: Optional[str]) -> Optional[str]:
 # AWS WAF's own vocabulary. Counted on every served capture (0 each) and
 # present on the challenge. `awswaf` alone is NOT here: the site's `_app`
 # bundle names a WAF challenge script in its config, and a marker that
-# matches a served page is worse than none (§18).
+# matches a served page is worse than none.
 AWS_WAF_MARKERS = ("gokuProps", "token.awswaf.com", "challenge.js")
 WAF_STATUSES = (202, 405)
 # A page the site built references its own asset host; an interstitial or
-# Chromium's own error page does not (§8, §18). 9 to 298 occurrences on
+# Chromium's own error page does not. 9 to 298 occurrences on
 # every served capture, the 404 and the missing-book page included.
 OWN_ASSET = "gr-assets.com"
 
@@ -407,7 +407,7 @@ def _json_or_none(text: Optional[str]) -> Any:
 def detect_page_state(text: Optional[str], status: Optional[int] = None,
                       url: str = "", waf_action: Optional[str] = None) -> str:
     """Name what the site answered with. The names are page_flow's policy
-    states; order is by how much each signal PROVES (§17): a WAF header or
+    states; order is by how much each signal PROVES: a WAF header or
     status first, then the page's own content, then heuristics."""
     text = text or ""
     if waf_action or (status in WAF_STATUSES and len(text) < 20_000):
@@ -540,7 +540,7 @@ def html_to_text(html: Optional[str]) -> Optional[str]:
 
 def _rating_pair(avg: Any, count: Any) -> Tuple[Optional[float], Optional[int]]:
     """A book nobody has rated shows "0.00 avg rating — 0 ratings". Both go
-    null together, so the zero does not drag an average (§21)."""
+    null together, so the zero does not drag an average."""
     c = _int(count)
     if not c:
         return None, None

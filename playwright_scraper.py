@@ -40,7 +40,7 @@ What is different about Goodreads
 * **A listing answers a page past its end with ANOTHER page, HTTP 200**: a
   list with its last, a search with "Page 100 of 100", a shelf with its
   first. Every page is asked which page it served, and a mismatch ends the
-  listing (§23).
+  listing.
 
 Usage
 -----
@@ -85,7 +85,7 @@ logger = logging.getLogger("playwright_scraper")
 
 
 # Chromium's own names for a proxy that could not be used. Distinguished
-# from a timeout because the two want opposite responses (CLAUDE.md §8).
+# from a timeout because the two want opposite responses.
 _PROXY_ERROR_MARKERS = (
     "ERR_PROXY_CONNECTION_FAILED",
     "ERR_TUNNEL_CONNECTION_FAILED",
@@ -100,7 +100,7 @@ _PROXY_ERROR_MARKERS = (
 # The fetch() the GraphQL API goes through. It is handed to `page.evaluate`
 # as a FUNCTION, which Playwright sends through `Runtime.callFunctionOn`
 # rather than evaluating a string, so it works under any Content-Security-
-# Policy (§18). It returns the status, the body and the WAF's own header,
+# Policy. It returns the status, the body and the WAF's own header,
 # because a 202 challenge has an empty body and the header is then the only
 # signal.
 #
@@ -108,7 +108,7 @@ _PROXY_ERROR_MARKERS = (
 # admit credentials, so cookies ride along only on a same-origin request;
 # the key goes in `x-api-key`, exactly as the site's own front end sends it.
 # The AbortController is the timeout: a browser fetch() has none of its own,
-# and §8 requires every remote call to be bounded.
+# and every remote call here has to be bounded.
 FETCH_JS = """
 async ([url, method, body, timeoutMs, extra]) => {
   const ctl = new AbortController();
@@ -136,7 +136,7 @@ async ([url, method, body, timeoutMs, extra]) => {
 
 
 def _chrome_ua(chromium_version: str) -> str:
-    """A desktop-Chrome UA naming the browser's OWN real version (§8)."""
+    """A desktop-Chrome UA naming the browser's OWN real version."""
     return (f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             f"(KHTML, like Gecko) Chrome/{chromium_version} Safari/537.36")
 
@@ -155,7 +155,7 @@ def _launch_local(pw, args, pool):
 
     A proxy rotation tears the whole browser down and calls this again.
     Cookies a bot manager issued against one exit, replayed from another,
-    are a stronger signal than either address alone (§8), and on this site
+    are a stronger signal than either address alone, and on this site
     that includes a solved `aws-waf-token`.
     """
     launch_kwargs = {"headless": args.headless}
@@ -193,7 +193,7 @@ class _Ops:
 
     A rotation means a genuinely FRESH browser: cookies a bot manager issued
     against one exit, replayed from another, are a stronger signal than
-    either address alone (§8), and here that includes a solved
+    either address alone, and here that includes a solved
     `aws-waf-token`.
     """
 
@@ -309,7 +309,7 @@ def _connect_remote(pw, args):
             break
     if browser is None:
         # The endpoint carries a password, and Playwright repeats it five
-        # times in its error text (§8). Rewritten with it masked, keeping
+        # times in its error text. Rewritten with it masked, keeping
         # host and port, which are the useful half.
         raise PWError(
             f"could not connect to --cdp-endpoint "
@@ -338,7 +338,7 @@ def _connect_remote(pw, args):
 
 # Every `scheme://user:pass@` in a string, however many times it occurs.
 # Matching GLOBALLY is the point: a Playwright connection error repeats the
-# endpoint five times (§8).
+# endpoint five times.
 _CREDENTIALS_IN_URL_RE = re.compile(r"([a-z][a-z0-9+.\-]*://)[^\s/@]+:[^\s/@]+@",
                                     re.IGNORECASE)
 
@@ -367,7 +367,7 @@ def handle_captcha_if_present(page, args, proxy: Optional[str] = None) -> bool:
     Nothing is paid for a page that holds no puzzle. The WAF's CHALLENGE
     action carries only `challenge.js`, and there is no answer to buy for
     that. A browser that runs it passes by itself, which is what the settle
-    wait in `_land` is for (§19: "unsolvable" is a property of a page).
+    wait in `_land` is for: "unsolvable" is a property of a page.
     """
     try:
         html = page.content()
@@ -392,7 +392,7 @@ def handle_captcha_if_present(page, args, proxy: Optional[str] = None) -> bool:
         token = solve_recaptcha(challenge, args.twocaptcha_key,
                                 api_version=args.captcha_api,
                                 min_score=args.min_score, proxy=proxy)
-    except Exception as e:  # noqa: BLE001 — a solver error is a warning (§8)
+    except Exception as e:  # noqa: BLE001 — a solver error is a warning
         logger.error("Solving the AWS WAF CAPTCHA failed (%s) — continuing.",
                      _mask_credentials(str(e)))
         return False
@@ -415,7 +415,7 @@ def _fetch_pages_concurrently(args, pool, query: Query, page_nums, concurrency: 
 
     Each worker owns its own Playwright instance, browser and exit: with the
     sync API a browser belongs to the thread that made it, so sharing one is
-    not an option even in principle (§7). The page loop itself is
+    not an option even in principle. The page loop itself is
     page_flow.worker_loop, shared by all three engines.
     """
     work = queue.Queue()
@@ -490,7 +490,7 @@ def parse_args(argv=None):
                         "/series/{id} or /book/show/{id}. Default: the Best "
                         "Books Ever list. Also read from GOODREADS_URL.")
     g = p.add_argument_group("book")
-    g.add_argument("--max-books", type=int, default=None, metavar="N",
+    g.add_argument("--max-books", type=page_flow.bounded(int, 1, "--max-books"), default=None, metavar="N",
                    help="With --mode book and a listing url: read at most N of "
                         "the books the listing named (default: all of them).")
     g = p.add_argument_group("reviews")
@@ -512,14 +512,14 @@ def parse_args(argv=None):
                    help="Reviews per request, 1-100 (default 30, the site's "
                         "own). 200 is answered with ZERO reviews, so it is "
                         "refused.")
-    p.add_argument("--pages", type=int, default=1,
+    p.add_argument("--pages", type=page_flow.bounded(int, 1, "--pages"), default=1,
                    help="Pages to fetch (100 books on a list, 30 on an "
                         "author's, 20 on a search, 30 reviews). Planned "
                         "against what page 1 states, so asking for more than "
                         "exist fetches all of them.")
-    p.add_argument("--delay", type=float, default=1.0,
+    p.add_argument("--delay", type=page_flow.bounded(float, 0, "--delay"), default=1.0,
                    help="Delay between pages, seconds (default %(default)s)")
-    p.add_argument("--concurrency", type=int, default=1, metavar="N",
+    p.add_argument("--concurrency", type=page_flow.bounded(int, 1, "--concurrency"), default=1, metavar="N",
                    help="Fetch pages through N parallel workers (default 1). "
                         "Each worker runs its own browser and holds its own "
                         "proxy exit. Ignored with --cdp-endpoint.")
@@ -528,7 +528,7 @@ def parse_args(argv=None):
                         "The pause doubles each time. A request the API "
                         "REFUSED is not retried: its parameters would be "
                         "refused again.")
-    p.add_argument("--retry-delay", type=float, default=2.0,
+    p.add_argument("--retry-delay", type=page_flow.bounded(float, 0, "--retry-delay"), default=2.0,
                    help="Seconds before the first retry, doubling thereafter.")
     p.add_argument("--format", choices=["json", "csv", "both"], default="both")
     p.add_argument("--out", default="goodreads_rows", help="Output file prefix")
@@ -547,7 +547,7 @@ def parse_args(argv=None):
                         "per-page: a new exit, and a fresh browser, per page.")
     p.add_argument("--proxy-shuffle", action="store_true",
                    help="Shuffle the pool at startup.")
-    p.add_argument("--proxy-block-retries", type=int, default=2,
+    p.add_argument("--proxy-block-retries", type=page_flow.bounded(int, 0, "--proxy-block-retries"), default=2,
                    help="When a page is refused (403, AWS WAF), retry it "
                         "from this many OTHER exits (default 2). Needs a pool "
                         "of more than one.")

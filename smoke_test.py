@@ -26,9 +26,11 @@ make_fixtures.py for why each).
 
 import argparse
 import ast
+import contextlib
 import copy
 import csv
 import inspect
+import io
 import json
 import os
 import re
@@ -141,7 +143,7 @@ def check_fixture_corpus_is_real_and_scrubbed():
 
 
 # ---------------------------------------------------------------------------
-# The parser, asserted on VALUES rather than on coverage (§10)
+# The parser, asserted on VALUES rather than on coverage
 # ---------------------------------------------------------------------------
 
 def check_a_list_page_parses_to_the_captured_values():
@@ -168,7 +170,7 @@ def check_a_list_page_parses_to_the_captured_values():
 
 
 def check_out_of_range_pages_are_the_site_serving_another_page():
-    """§23: /list/show/1?page=800 answers 200 with page 100, and a search
+    """/list/show/1?page=800 answers 200 with page 100, and a search
     ?page=999 with "Page 100 of 100". A run that trusted its request would
     re-collect the last page for as long as it was asked to."""
     import product_parser as P
@@ -307,7 +309,7 @@ def check_reviews_parse_to_the_captured_values():
     equal("...and is the last one: no cursor after it", P.next_cursor(fx("reviews_fr_1star")), None)
     payload = json.loads(fx("reviews_p1"))
     payload["data"]["getReviews"]["edges"][0]["node"]["rating"] = 0
-    equal("a review with no stars is null, not 0 (§21)",
+    equal("a review with no stars is null, not 0",
           P.parse_reviews(json.dumps(payload), q, 1)[0].rating, None)
 
 
@@ -333,7 +335,7 @@ def check_the_reviews_request_is_the_one_measured():
 
 
 def check_the_api_silent_fallbacks_are_refused_up_front():
-    """§26: each of these was answered by the live API with HTTP 200 and
+    """Each of these was answered by the live API with HTTP 200 and
     nothing, or refused only after a request."""
     q = _q("https://www.goodreads.com/book/show/5907", "reviews")
     q.page_size = 200
@@ -354,7 +356,7 @@ def check_zero_ratings_are_null_not_zero():
                                    "0.00 avg rating — 0 ratings")
     r = P.parse_listing(html, _q(fx_url("author_p1")), 1)[0]
     check("the edit applied (a control that did nothing proves nothing)", "0 ratings" in html)
-    equal("an unrated book is null on both, never 0.00 (§21)", (r.avg_rating, r.ratings_count),
+    equal("an unrated book is null on both, never 0.00", (r.avg_rating, r.ratings_count),
           (None, None))
 
 
@@ -418,7 +420,7 @@ def check_page_states_on_real_captures():
 
 
 def check_markers_do_not_match_a_good_page_or_the_extension():
-    """§18: count a marker on pages you know are good. §24: the Scraping
+    """Count a marker on pages you know are good. The Scraping
     Browser's auto-solve extension injects captcha hunters (amazon_waf among
     them) into every page, and the set must score zero on that WITHOUT any
     strip."""
@@ -432,7 +434,7 @@ def check_markers_do_not_match_a_good_page_or_the_extension():
     # The line above would pass on the own-asset guard alone (a served page
     # references gr-assets.com), whatever the markers were: a planted
     # "amazon_waf" marker left it green. So the SET is checked directly
-    # too, as a raw substring count, which is what §24 asks for.
+    # too, as a raw substring count, which is what that check needs.
     equal("...and not one marker even OCCURS in it (the set, not the guard)",
           [m for m in P.AWS_WAF_MARKERS if m in html], [])
     equal("...and it classifies as the book it is", P.detect_page_state(
@@ -447,7 +449,7 @@ def check_markers_do_not_match_a_good_page_or_the_extension():
 
 
 def check_the_waf_page_is_a_challenge_not_a_captcha():
-    """§19: "unsolvable" is a property of a PAGE. This is the CHALLENGE
+    """"unsolvable" is a property of a PAGE. This is the CHALLENGE
     action: no widget, nothing to buy, and a browser passes it for free."""
     from captcha_solver import detect_aws_waf
     c = detect_aws_waf(fx("waf_challenge"), fx_url("waf_challenge"))
@@ -475,7 +477,7 @@ def check_state_policy():
           F.should_retry("unauthorized") and not F.counts_as_blocked("unauthorized"))
     check("challenge: retried, solved, blocked", F.should_retry("challenge")
           and F.should_solve("challenge") and F.counts_as_blocked("challenge"))
-    check("throttled: retried, NOT blocked (§24)",
+    check("throttled: retried, NOT blocked",
           F.should_retry("throttled") and not F.counts_as_blocked("throttled"))
     equal("at most one solve per page", F.SOLVES_PER_PAGE, 1)
     check("headless /search is told to go headful",
@@ -580,7 +582,7 @@ def check_the_shared_loop_end_to_end():
     equal("a served list page: exit 0", rc, 0)
     equal("...complete", meta and meta["status"], "complete")
     equal("...the site's total in the sidecar", meta and meta["total_results"], 79607)
-    equal("...and that it caps what it serves (§21)",
+    equal("...and that it caps what it serves",
           meta and (meta["reachable_max"], meta["capped_by_site"]), (10000, True))
     equal("...rows written", len(rows or []), 5)
 
@@ -591,7 +593,7 @@ def check_the_shared_loop_end_to_end():
           (meta["status"], meta["stop_reason"]), ("complete", "end_of_listing"))
     equal("...pages 1-3 fetched, not 4-5", len(ops.gotos), 3)
     equal("...and page 100's rows were NOT collected", len(rows), 8)
-    check("page+position unique across the run (§18)",
+    check("page+position unique across the run",
           len({(r["page"], r["position"]) for r in rows}) == len(rows))
 
     rc, meta, rows, ops = _run(_FakeOps(lambda u: (404, fx("author_p999"))),
@@ -606,8 +608,8 @@ def check_the_shared_loop_end_to_end():
     rc, meta, rows, ops = _run(_FakeOps(lambda u: (202, "")),
                                url="https://www.goodreads.com/book/show/5907")
     equal("a WAF challenge that never clears: exit 3, not 5", rc, 3)
-    equal("...and nothing was sent to the solver? (no widget: one attempt, returned False)",
-          ops.solves <= 2, True)
+    equal("...the solver was reached ONCE for the page, though it was "
+          "navigated twice (once, then from a fresh browser)", ops.solves, 1)
 
     class Clearing(_FakeOps):
         """The WAF's own script reloads the page: the first reads see the
@@ -681,9 +683,101 @@ def check_the_shared_loop_end_to_end():
     throttled = [(429, ""), (200, fx("reviews_p1"))]
     rc, meta, rows, ops = _run(_FakeOps(book, throttled), url="https://www.goodreads.com/book/show/5907",
                                mode="reviews", retries=1)
-    equal("a throttle wait spends its OWN budget, not --retries (§24, §26: "
+    equal("a throttle wait spends its OWN budget, not --retries ("
           "with --retries 1 the page still arrives)", rc, 0)
     equal("...at the SAME exit", ops.relaunches, 0)
+
+
+class _PaidButStillChallenged(_FakeOps):
+    """A solver that reports success while the page stays challenged: the
+    worst case for a budget, since every call site believes it may buy."""
+
+    def solve_captcha(self):
+        self.solves += 1
+        return True
+
+
+def _run_with_pool(ops, proxies, **kw):
+    import page_flow
+    from proxy_pool import ProxyPool
+    with tempfile.TemporaryDirectory() as tmp:
+        args = _args(tmp, **kw)
+        errors = []
+        q = page_flow.build_query(args, errors.append)
+        assert not errors, errors
+        pool = ProxyPool(proxies)
+        return page_flow.run_pages(lambda: ops, lambda o: None,
+                                   lambda pages, query: ([], [], False),
+                                   args, pool, q, 1)
+
+
+def check_one_paid_solve_per_page_on_every_path():
+    """SOLVES_PER_PAGE is one allowance for the PAGE, not for each call into
+    the solver. Before, a page re-fetched after a refusal started a fresh
+    allowance: 2 solves with no pool, 4 with a pool of four exits."""
+    import page_flow
+    waf = lambda u: (202, fx("waf_challenge"))
+    book = "https://www.goodreads.com/book/show/5907"
+    for retries in (1, 3):
+        rc, meta, rows, ops = _run(_PaidButStillChallenged(waf), url=book, retries=retries)
+        equal("no pool, --retries %d: ONE solve for the page" % retries, ops.solves, 1)
+        equal("...and it was still re-fetched from a fresh browser", ops.relaunches, 1)
+        equal("...and the run is blocked (exit 3)", rc, 3)
+    ops = _PaidButStillChallenged(waf)
+    rc = _run_with_pool(ops, ["http://10.0.0.%d:8080" % i for i in range(1, 5)],
+                        url=book, proxy_block_retries=3)
+    equal("a pool of 4, --proxy-block-retries 3: rotated three times", ops.relaunches, 3)
+    equal("...and still ONE solve: a fresh exit is not a fresh allowance", ops.solves, 1)
+    rc, meta, rows, ops = _run(_PaidButStillChallenged(waf), url=book, mode="reviews")
+    equal("a reviews run whose LANDING is challenged: one solve", ops.solves, 1)
+    rc, meta, rows, ops = _run(_PaidButStillChallenged(waf), url=book, mode="reviews",
+                               review_language="en")
+    equal("...also when the language check lands first: one solve for page 1",
+          ops.solves, 1)
+    budget = page_flow.SolveBudget()
+    calls = []
+    check("the allowance is checked BEFORE a purchase",
+          budget.spend(lambda: calls.append(1) or True) and not budget.spend(
+              lambda: calls.append(2) or True) and calls == [1], repr(calls))
+
+
+def check_a_page_that_states_rows_and_parses_none_is_a_parser_failure():
+    """A served page whose own total and page count say it holds rows, and
+    from which the parser read none, is this repo's parser failing. Before,
+    page 1 reported exit 4 ("the listing is empty") and page 2 ended the run
+    as complete with exit 0."""
+    import page_flow
+    real = page_flow.parse_page
+    try:
+        page_flow.parse_page = lambda text, query, page=1: []
+        rc, meta, rows, ops = _run(_FakeOps(_listing(lambda n: "list_p1")))
+        equal("page 1 states 79,607 books and parses to none: exit 5, not 4", rc, 5)
+        page_flow.parse_page = lambda text, query, page=1: (
+            real(text, query, page) if page == 1 else [])
+        rc, meta, rows, ops = _run(_FakeOps(_listing(
+            lambda n: {1: "list_p1"}.get(n, "list_p2"))), pages=3)
+        equal("page 2 served and parsed to none: exit 6, partial",
+              (rc, meta and meta["status"]), (6, "partial"))
+        equal("...named parser_found_nothing, with page 2 failed",
+              meta and (meta["stop_reason"], meta["pages_failed"]),
+              ("parser_found_nothing", [2]))
+        equal("...and page 3 was not fetched", len(ops.gotos), 2)
+    finally:
+        page_flow.parse_page = real
+    check("parser_found_nothing is NOT a complete stop reason",
+          "parser_found_nothing" not in __import__("output_writer").COMPLETE_STOP_REASONS)
+    rc, meta, rows, ops = _run(_FakeOps(lambda u: (404, fx("author_p999"))),
+                               url=fx_url("author_p999"))
+    equal("an author list past its end is still exit 4 (the site said so)", rc, 4)
+    rc, meta, rows, ops = _run(_FakeOps(lambda u: (200, fx("search_none"))),
+                               url=fx_url("search_none"))
+    equal("a search with no results is still exit 4", rc, 4)
+    q = _q("https://www.goodreads.com/shelf/show/fantasy")
+    check("a shelf's constant page count of 1 is not a statement of rows",
+          not page_flow.page_states_rows(q, 1, None, 1))
+    q = _q(book_url := "https://www.goodreads.com/book/show/5907", "reviews")
+    check("a reviews filter whose total is 0 is an answer, not a parser failure",
+          not page_flow.page_states_rows(q, 1, 0, 0), book_url)
 
 
 def check_a_book_run_from_a_listing_reads_every_book():
@@ -713,7 +807,7 @@ def check_usage_errors_are_refused_before_a_request():
     rc, *_ = _run(ops, url="https://www.goodreads.com/list/show/1", sort="newest")
     check("--sort on a list run: refused (it would do nothing)", rc[0] == "usage")
     rc, *_ = _run(ops, url="https://www.goodreads.com/book/show/1", mode="reviews", concurrency=3)
-    check("--concurrency with reviews: refused, the cursor chains the pages (§18)",
+    check("--concurrency with reviews: refused, the cursor chains the pages",
           rc[0] == "usage" and "cursor" in rc[1][0])
     rc, *_ = _run(ops, url="https://www.goodreads.com/list/show/1", max_books=5)
     check("--max-books without --mode book: refused", rc[0] == "usage")
@@ -761,7 +855,7 @@ def check_row_schema():
                                UNIQUE_BY_SKU_MODES)
     for cls in (ListedBook, Book, Review):
         names = [f.name for f in fields(cls)]
-        equal("%s: the family prefix is byte-identical and in order (§9)" % cls.__name__,
+        equal("%s: the family prefix is byte-identical and in order" % cls.__name__,
               names[:5], ["source", "scraped_at", "url", "sku", "title"])
         equal("%s: the run-describing tail closes the row" % cls.__name__,
               names[-4:], ["page", "position", "mode", "data_source"])
@@ -795,12 +889,175 @@ def check_csv_and_json_writers():
         check("a list column stays a real list in JSON", isinstance(loaded[0]["genres"], list))
 
 
+def check_a_failed_write_keeps_the_previous_file():
+    """A write that fails part-way must leave the previous good file as it
+    was, and leave no temp file behind. Before, `open(path, "w")` truncated
+    first, and a failed dump left 10 bytes of a 539-byte file."""
+    import output_writer as O
+    rows = _rows("list_p1")
+    real_dump = O.json.dump
+
+    def broken_dump(obj, f, **kw):
+        f.write("[{")
+        raise OSError("disk full")
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, write in (("out.json", lambda p: O.write_json(rows, p)),
+                            ("out.meta.json", lambda p: O.write_run_meta(p[:-10], {"status": "complete"}))):
+            path = os.path.join(tmp, name)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write('{"good": true}')
+            O.json.dump = broken_dump
+            try:
+                write(path)
+                raised = False
+            except OSError:
+                raised = True
+            finally:
+                O.json.dump = real_dump
+            check("%s: the failure is reported, not swallowed" % name, raised)
+            equal("%s: the previous good file is intact" % name,
+                  open(path, encoding="utf-8").read(), '{"good": true}')
+        equal("no temp file is left behind", sorted(os.listdir(tmp)),
+              ["out.json", "out.meta.json"])
+
+
+def check_written_files_get_the_mode_open_would_give():
+    """A temp file is created 0600 and the rename keeps that, so the writer
+    sets the mode itself: a new file `0o666 & ~umask`, an existing file its
+    own mode. Checked under a NON-default umask too, where a flat 0o644
+    would differ."""
+    import output_writer as O
+    rows = _rows("list_p1")
+    with tempfile.TemporaryDirectory() as tmp:
+        for umask in (0o022, 0o002, 0o077):
+            old = os.umask(umask)
+            try:
+                path = os.path.join(tmp, "new-%o.json" % umask)
+                O.write_json(rows, path)
+                equal("umask %03o: a new file is %03o" % (umask, 0o666 & ~umask),
+                      os.stat(path).st_mode & 0o777, 0o666 & ~umask)
+            finally:
+                os.umask(old)
+        path = os.path.join(tmp, "kept.csv")
+        open(path, "w").close()
+        os.chmod(path, 0o640)
+        O.write_csv(rows, path)
+        equal("an existing file keeps its own mode", os.stat(path).st_mode & 0o777, 0o640)
+
+
+def check_csv_cells_that_start_a_formula_are_neutralised():
+    """Review text, shelf names, tags and reviewer names are written by
+    whoever posted them. A cell starting with = + - @ or a tab/CR/LF is a
+    formula to a spreadsheet: CSV gets a leading apostrophe, JSON keeps the
+    site's text, and the sidecar counts the difference."""
+    import output_writer as O
+    rows = _rows("reviews_p1", mode="reviews")
+    r = rows[0]
+    r.text = '=HYPERLINK("http://x")'
+    r.tags = ["@sum", "fine"]
+    r.reviewer = "-dash"
+    r.likes = -5
+    with tempfile.TemporaryDirectory() as tmp:
+        prefix = os.path.join(tmp, "out")
+        rc = O.finish_run(rows, prefix, "both", False, blocked=False,
+                          stop_reason="completed", pages_requested=1,
+                          pages_completed=1, start_url="u", final_url="u",
+                          mode="reviews", extra={"total_results": 9})
+        equal("the run still exits 0", rc, 0)
+        got = next(csv.DictReader(open(prefix + ".csv", encoding="utf-8", newline="")))
+        equal("a formula cell is escaped in CSV", got["text"], '\'=HYPERLINK("http://x")')
+        equal("a joined list is escaped AFTER the join", got["tags"], "'@sum | fine")
+        equal("a leading minus in TEXT is escaped", got["reviewer"], "'-dash")
+        equal("a negative NUMBER is left a number", got["likes"], "-5")
+        loaded = json.load(open(prefix + ".json", encoding="utf-8"))
+        equal("JSON keeps the site's text", loaded[0]["text"], '=HYPERLINK("http://x")')
+        meta = json.load(open(prefix + ".meta.json", encoding="utf-8"))
+        equal("the sidecar counts the escaped cells", meta.get("csv_cells_escaped"), 3)
+        O.finish_run(rows, prefix, "both", False, blocked=False,
+                     stop_reason="completed", pages_requested=1,
+                     pages_completed=1, start_url="u", final_url="u",
+                     mode="reviews", extra={"csv_cells_escaped": "engine"})
+        meta = json.load(open(prefix + ".meta.json", encoding="utf-8"))
+        equal("...merged UNDER the caller's extra, never over it",
+              meta.get("csv_cells_escaped"), "engine")
+
+
+NUMERIC_FLAG_FLOORS = {
+    "--pages": 1, "--delay": 0, "--retry-delay": 0, "--concurrency": 1,
+    "--proxy-block-retries": 0, "--max-books": 1,
+}
+# scraper_api_client.py counts --retries as EXTRA attempts, so 0 is legal
+# there and only a negative is refused.
+API_CLIENT_FLAG_FLOORS = {"--pages": 1, "--delay": 0, "--retries": 0,
+                          "--retry-delay": 0}
+
+
+def _bounded_flag_problems():
+    """Every counted or timed flag is declared with page_flow.bounded and the
+    floor this repo means, read from the SOURCE so an engine whose driver is
+    absent is checked too."""
+    import argparse as _ap
+    import page_flow
+    problems = []
+    targets = {m + ".py": NUMERIC_FLAG_FLOORS for m in ENGINES}
+    targets["scraper_api_client.py"] = API_CLIENT_FLAG_FLOORS
+    for filename, floors in targets.items():
+        tree = ast.parse(open(os.path.join(HERE, filename), encoding="utf-8").read())
+        found = {}
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "add_argument"
+                    and node.args and isinstance(node.args[0], ast.Constant)
+                    and node.args[0].value in floors):
+                kind = next((k.value for k in node.keywords if k.arg == "type"), None)
+                found[node.args[0].value] = kind
+        for flag, floor in floors.items():
+            kind = found.get(flag)
+            if kind is None:
+                problems.append("%s declares no %s" % (filename, flag))
+                continue
+            text = ast.unparse(kind) if hasattr(ast, "unparse") else ""
+            if text and not (text.startswith("page_flow.bounded(")
+                             and ", %d, %r)" % (floor, flag) in text.replace('"', "'")):
+                problems.append("%s: %s has type=%s, expected page_flow.bounded(..., %d, %r)"
+                                % (filename, flag, text, floor, flag))
+    for flag, floor in NUMERIC_FLAG_FLOORS.items():
+        check_fn = page_flow.bounded(float if "delay" in flag else int, floor, flag)
+        try:
+            check_fn(str(floor - 1))
+            problems.append("bounded accepted %s %d" % (flag, floor - 1))
+        except _ap.ArgumentTypeError as e:
+            if flag not in str(e):
+                problems.append("the error for %s does not name the flag: %s" % (flag, e))
+        if check_fn(str(floor)) != floor:
+            problems.append("bounded refused %s %d" % (flag, floor))
+    return problems
+
+
+def check_numeric_flags_refuse_values_below_their_floor():
+    problems = _bounded_flag_problems()
+    check("--pages/--delay/--retry-delay/--concurrency/--proxy-block-retries/"
+          "--max-books refuse values below their floor in every entry point",
+          not problems, "; ".join(problems))
+    import page_flow
+    p = __import__("argparse").ArgumentParser(prog="x")
+    p.add_argument("--delay", type=page_flow.bounded(float, 0, "--delay"))
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err):
+            p.parse_args(["--delay", "-1"])
+        code = 0
+    except SystemExit as e:
+        code = e.code
+    equal("argparse turns it into exit 2 naming the flag",
+          (code, "--delay must be at least 0" in err.getvalue()), (2, True))
+
+
 def check_exit_codes():
     import output_writer as O
     equal("3 blocked / 4 empty / 5 never obtained / 6 partial",
           (O.EXIT_BLOCKED, O.EXIT_NO_PRODUCTS, O.EXIT_FETCH_FAILED, O.EXIT_PARTIAL),
           (3, 4, 5, 6))
-    check("end_of_listing is a COMPLETE stop reason (§24)",
+    check("end_of_listing is a COMPLETE stop reason",
           "end_of_listing" in O.COMPLETE_STOP_REASONS)
     check("api_rejected is NOT complete", "api_rejected" not in O.COMPLETE_STOP_REASONS)
 
@@ -849,11 +1106,11 @@ def check_sidecar_shape():
 
 
 # ---------------------------------------------------------------------------
-# The family's own checks (CLAUDE.md §10, §17, §22, §24, §26)
+# The family's own checks
 # ---------------------------------------------------------------------------
 
 def check_policy_constants_have_a_consumer():
-    """§17: a policy constant nothing reads is the same defect as dead code."""
+    """A policy constant nothing reads is the same defect as dead code."""
     src = open(os.path.join(HERE, "page_flow.py"), encoding="utf-8").read()
     for constant in ("RETRY_ON_BLOCKED", "BLOCK_RETRIES_WITHOUT_POOL",
                      "SOLVES_PER_PAGE", "THROTTLE_RETRIES", "THROTTLE_WAIT_S",
@@ -898,9 +1155,9 @@ def check_engines_import_their_driver_at_module_level():
 
 
 def check_shared_calls_bind_against_the_real_signature():
-    """§17's check #1. Every call from an engine (and the Scraper API client,
+    """Every call from an engine (and the Scraper API client,
     diff_runs and page_flow itself) into a shared module is bound against the
-    callee's real signature. A name that does not exist FAILS (§22). A name
+    callee's real signature. A name that does not exist FAILS. A name
     bound in the calling file shadows a same-named module."""
     import captcha_solver
     import output_writer
@@ -975,8 +1232,7 @@ def _argparse_flags(module_name):
     return flags
 
 
-# The family's flag contract (CLAUDE.md §9, including the five it omitted
-# for months), plus this repo's own query flags.
+# The family's flag contract, plus this repo's own query flags.
 CONTRACT_FLAGS = {
     "--url", "--pages", "--category", "--format", "--out", "--delay",
     "--retries", "--retry-delay", "--concurrency", "--proxy", "--proxy-file",
@@ -993,7 +1249,7 @@ GOODREADS_FLAGS = {"--sort", "--rating", "--review-language", "--search-text",
 
 
 def check_engine_flag_sets():
-    """§17's check #2: against the contract AND against each other, both
+    """Engine flags, against the contract AND against each other, both
     ways. The exception list IS the documentation."""
     sets = {m: _argparse_flags(m) for m in ENGINES}
     for module, flags in sets.items():
@@ -1022,7 +1278,7 @@ def check_banned_and_removed_flags():
 
 
 def check_undefined_names_in_every_module():
-    """§10: compileall proves a file PARSES, not that its names RESOLVE.
+    """`compileall` proves a file PARSES, not that its names RESOLVE.
     Kept COARSE (pooled bindings) so it under-reports rather than invents."""
     import builtins
     for filename in sorted(f for f in os.listdir(HERE) if f.endswith(".py")):
@@ -1136,7 +1392,7 @@ def check_credential_scan_is_one_implementation_invoked_from_both():
     script = os.path.join(HERE, ".github", "ci_checks.py")
     if not os.path.isdir(os.path.join(HERE, ".github")):
         # Inside the Docker image, which copies no .github at all. Triggered
-        # by the WHOLE directory being absent, never by one file in it (§22).
+        # by the WHOLE directory being absent, never by one file in it.
         skip("ci_checks", "no .github directory (the image)")
         return
     check("the credential scan exists as a script", os.path.exists(script))
@@ -1184,8 +1440,8 @@ def check_the_hex_exemption_is_one_context_only():
 
 
 # Assembled from pieces, so this file can be scanned like every other rather
-# than exempted (§22: the file most likely to acquire a stray phrase is the
-# one a wholesale exemption never reads).
+# than exempted: the file most likely to acquire a stray phrase is the
+# one a wholesale exemption never reads.
 BANNED_WORDING = (
     "cloud" + " browser", "anti" + "detect browser", "2scraper " + "Anti" + "detect Browser",
     "gate." + "2prx.com", "ANTI" + "DETECT_LOCAL_API",
@@ -1193,7 +1449,7 @@ BANNED_WORDING = (
 
 
 def check_banned_wording():
-    """§12, enforced by this test rather than by review."""
+    """Banned product wording, enforced by this test rather than by review."""
     scanned = 0
     for root, dirs, files in os.walk(HERE):
         dirs[:] = [d for d in dirs if d not in (".git", "__pycache__", ".pytest_cache",
@@ -1212,8 +1468,41 @@ def check_banned_wording():
     check("the banned-wording scan read the repo (%d files)" % scanned, scanned > 20)
 
 
+# The family's own working notes are private, so a pointer into them from a
+# public file reads as a reference nobody outside can follow. Assembled from
+# pieces so this file does not match itself.
+_SECTION_SIGN = chr(0xA7)
+PRIVATE_CITATIONS = re.compile("|".join([
+    re.escape("CLAUDE" + ".md"), re.escape("claude_" + "2scraper"),
+    re.escape("2scraper_" + "repo_rules"), "play" + "book",
+    re.escape(_SECTION_SIGN) + r"\s*\d",
+]), re.IGNORECASE)
+
+
+def check_no_public_file_cites_the_private_notes():
+    """Every rule a file relies on is stated in that file's own words."""
+    scanned, hits = 0, []
+    for root, dirs, files in os.walk(HERE):
+        dirs[:] = [d for d in dirs
+                   if d not in (".git", "__pycache__", ".pytest_cache", "live",
+                                "captures", ".claude", "node_modules")
+                   and not os.path.exists(os.path.join(root, d, "pyvenv.cfg"))]
+        for filename in files:
+            path = os.path.join(root, filename)
+            try:
+                text = open(path, encoding="utf-8").read()
+            except (UnicodeDecodeError, OSError):
+                continue
+            scanned += 1
+            for n, line in enumerate(text.splitlines(), 1):
+                if PRIVATE_CITATIONS.search(line):
+                    hits.append("%s:%d" % (os.path.relpath(path, HERE), n))
+    check("no shipped file cites the private notes", not hits, ", ".join(hits[:10]))
+    check("the citation scan read the repo (%d files)" % scanned, scanned > 20)
+
+
 def check_concurrency_with_the_browser_stubbed():
-    """§10: a live run cannot always reach this machinery. Driven through the
+    """A live run cannot always reach this machinery. Driven through the
     SHARED worker loop with the fetch replaced."""
     import page_flow
     import queue as queue_mod
@@ -1322,7 +1611,7 @@ def check_fingerprint_kwargs_are_ones_the_driver_accepts():
 
 
 def check_engines_do_not_evaluate_a_string_in_the_browser():
-    """§18: wait_for_function evaluates a string, which a CSP without
+    """wait_for_function evaluates a string, which a CSP without
     unsafe-eval kills. page.evaluate with a real function is fine."""
     for module in ENGINES:
         tree = ast.parse(open(os.path.join(HERE, module + ".py"), encoding="utf-8").read())
@@ -1471,7 +1760,7 @@ def check_x_debug_header_is_redacted():
 
 
 def check_captcha_capability_claims_match_the_code():
-    """§19: the most expensive bug this family can ship is a SENTENCE."""
+    """The most expensive bug this family can ship is a SENTENCE."""
     readme = open(os.path.join(HERE, "README.md"), encoding="utf-8").read()
     solver = open(os.path.join(HERE, "captcha_solver.py"), encoding="utf-8").read()
     low = readme.lower()
@@ -1484,7 +1773,7 @@ def check_captcha_capability_claims_match_the_code():
 
 
 def check_readme_numbers_are_not_stale():
-    """§17's check #4: a column count claimed in the README is a class's."""
+    """A column count claimed in the README is a class's."""
     readme = open(os.path.join(HERE, "README.md"), encoding="utf-8").read()
     from output_writer import ROW_CLASS_BY_MODE
     sizes = {len(fields(c)) for c in ROW_CLASS_BY_MODE.values()}

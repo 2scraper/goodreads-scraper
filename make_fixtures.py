@@ -31,10 +31,10 @@ WHAT IT ENFORCES
   * the scrub runs BEFORE anything is embedded:
       - the AppSync key the book page hands every visitor (`pageProps.apiKey`)
         and every CSRF `authenticity_token`. Neither grants anything to a
-        reader of this repo, and neither belongs in it (§10);
+        reader of this repo, and neither belongs in it;
       - a reviewer's name, profile id and url, and the review's own text and
-        id. The checks need the STRUCTURE of a review, not a person's words
-        (§10). Book, author and series data is the site's catalogue and is
+        id. The checks need the STRUCTURE of a review, not a person's words.
+        Book, author and series data is the site's catalogue and is
         kept verbatim;
   * a fixture that still holds a 32-hex string, a `da2-` key or a CSRF token
     after the scrub is refused.
@@ -97,7 +97,7 @@ OPTIONAL = {
     "waf_challenge": ("waf_challenge.html", GR + "/book/show/5907", 0, "waf", None),
     # A book page fetched over --cdp-endpoint (2026-09-28, a country-us
     # profile). The Scraping Browser's auto-solve extension injects the same
-    # captcha hunters into EVERY page it loads (§24): 16 scripts here,
+    # captcha hunters into EVERY page it loads: 16 scripts here,
     # amazon_waf among them, plus a `<captcha-widgets>` mount. Cut like any
     # book page, with the injected tags kept verbatim; the markers must score
     # zero on it WITHOUT any strip.
@@ -123,7 +123,7 @@ def _strip_forms(fragment: str) -> str:
     another. The parser reads neither, so both go. Asset urls carry a
     32-hex build fingerprint (`loading-trans-<md5>.gif`), which is the shape
     of an API key and would teach the credential scan an exception, so the
-    fingerprint goes too (§24: take it out rather than exempt it)."""
+    fingerprint goes too: taken out rather than exempted."""
     fragment = re.sub(r"-[0-9a-f]{32}(\.[a-z]+)", r"\1", fragment)
     fragment = re.sub(r"<form\b.*?</form>", "", fragment, flags=re.S)
     fragment = re.sub(r"<script\b.*?</script>", "", fragment, flags=re.S)

@@ -249,9 +249,8 @@ def playwright_context_kwargs(fp: dict) -> dict:
     # stating `deviceScaleFactor: 1.25` produced a browser reporting
     # `window.devicePixelRatio === 1`, so the identity contradicted itself
     # on an axis any fingerprinter reads for free -- and a contradiction is
-    # exactly what this flag exists to avoid. Same shape as the three
-    # defects the family notes already list for this file: a key the API
-    # returns that nothing applies. Found by comparing a live browser
+    # exactly what this flag exists to avoid. Same shape as three earlier
+    # defects in this file: a key the API returns that nothing applies. Found by comparing a live browser
     # against the fingerprint rather than by reading the code.
     scale = (fp.get("screen") or {}).get("deviceScaleFactor")
     if isinstance(scale, (int, float)) and not isinstance(scale, bool) and scale > 0:
@@ -331,7 +330,7 @@ def main() -> int:
     # loader. It used to read `os.environ` alone, which meant a key put in
     # `.env` exactly as the README and .env.example instruct worked for every
     # engine and failed HERE with "No API key" — a documented mechanism not
-    # applied on one path, which is the shape of half the defects §16 lists.
+    # applied on one path.
     #
     # `.env` has to be LOADED before it can be read: `env_value` looks at
     # os.environ, and `load_env` is what fills that from the file. Calling it
