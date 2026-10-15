@@ -50,6 +50,11 @@ writes the empty file.
 * **"The book page carries no API key or work id"** — the page shape moved;
   same issue template.
 * **"Gave up on page N"** — a timeout or a dead proxy. The log names which.
+* **`stop_reason: parser_found_nothing`** ("Page N was served and states ...
+  match(es) ... but the parser read NO rows from it") — the page said it
+  holds rows and none were read, so the page shape has moved. The page is
+  saved as `<out>_pageN_debug.html`; open a "Site changed" issue with it.
+  On page 2 or later this is exit 6 and the earlier pages are written.
 
 ## Exit 6 — partial
 

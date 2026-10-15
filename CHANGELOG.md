@@ -9,12 +9,25 @@ said so at the top of its release notes.
 
 ## [Unreleased]
 
-> **Behaviour change:** `--retries 0` is now a usage error (exit 2). It used
-> to be accepted and made the page-load loop unreachable, so nothing was
-> fetched and the engine reported the browser's own blank page as a result:
-> exit 3 or 4 with a 39-byte "capture", in tens of milliseconds. If a
-> script of yours passes 0, pass **1**: the flag counts ATTEMPTS, so 1 means
-> "try once and do not retry".
+> **Behaviour changes:**
+>
+> * **A page buys at most one paid CAPTCHA solve, however many times it is
+>   fetched.** A page re-fetched after a refusal used to start a new
+>   allowance: 2 solves per page with no proxy pool, and one per exit with a
+>   pool (4 on a pool of four). With `TWOCAPTCHA_KEY` set, that was money.
+> * **A served page that states rows and parses to none is now a parser
+>   failure** (`stop_reason: parser_found_nothing`): exit 5 on page 1
+>   (was 4, "the listing is empty") and exit 6 on a later page (was 0 and
+>   `status: complete`).
+> * **CSV cells that start with `=`, `+`, `-`, `@`, a tab or a line break
+>   get a leading `'`**, so a spreadsheet does not run them. JSON is
+>   unchanged; the sidecar's `csv_cells_escaped` counts the difference.
+> * **New usage errors (exit 2):** `--retries 0`; `--pages`,
+>   `--concurrency` and `--max-books` below 1; a negative `--delay`,
+>   `--retry-delay` or `--proxy-block-retries`; a negative `--retries`,
+>   `--pages` below 1 or a negative delay in `scraper_api_client.py`. If a
+>   script of yours passes `--retries 0`, pass **1**: the flag counts
+>   ATTEMPTS, so 1 means "try once and do not retry".
 
 ### Fixed
 
@@ -22,9 +35,38 @@ said so at the top of its release notes.
   `range(1, retries + 1)`, so 0 never runs it and the engine judged
   `about:blank`. Three third-party audits of this family ran exactly that and
   reported a working scraper as broken. `--retries` now goes through
-  `page_flow.attempts` in every entry point; a check reads the source of each
+  `page_flow.attempts` in every engine; a check reads the source of each
   one and calls the validator, so a new engine declaring the flag with a
   plain int fails the suite.
+- **The paid-solve limit was per call, not per page.** `SOLVES_PER_PAGE = 1`
+  was applied inside each navigation, and every re-fetch after a refusal (a
+  fresh browser, or the next exit in a pool) navigated again. One
+  allowance now lives for the whole page, is checked before each purchase
+  and is not reset by a retry or a rotation; the language check that lands
+  on the book before page 1 of a reviews run spends from page 1's. The
+  suite's old assertion `solves <= 2` pinned the bug; it now asserts 1, with
+  no pool, with a pool of four, and on a reviews landing.
+- **A page whose own count says it holds rows, parsed to none, was reported
+  as an empty listing or as the end of one.** It is now
+  `parser_found_nothing`, the page is saved for an issue, and the canary
+  names it.
+- **Output writes are atomic.** JSON, CSV and the sidecar are written to a
+  temporary file in the same directory and renamed over the target, so a
+  crash or a full disk mid-write leaves the previous file whole (before: a
+  539-byte `out.json` came back as 10 bytes). A new file gets the mode
+  `open()` would give it under the current umask; an existing file keeps its
+  own.
+- **`--delay`, `--retry-delay`, `--pages`, `--concurrency`,
+  `--proxy-block-retries` and `--max-books` are validated** in every engine,
+  and `--pages`, `--delay`, `--retries` and `--retry-delay` in
+  `scraper_api_client.py` (where `--retries` counts EXTRA attempts, so 0
+  stays legal there).
+- Comments, docstrings and one `--concurrency` error message pointed at
+  notes that are not public; each rule is now stated where it is used. The
+  captcha module's notes described another site; they describe this one.
+- The expired-endpoint hint no longer says a Scraping Browser profile lasts
+  "about a day": one was measured working after ten days, so the HTTP 401 is
+  the signal, not an age.
 
 ## [0.1.1] — 2026-09-28
 

@@ -53,6 +53,7 @@ from product_parser import (Query, detect_page_state, page_totals,
                             requested_page, served_page)
 from output_writer import dedupe_by_key, finish_run, SOURCE_DEFAULT
 import env_config
+import page_flow
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("scraper_api_client")
@@ -321,10 +322,10 @@ def parse_args():
     p.add_argument("--mode", choices=["list", "book", "reviews"], default=None,
                    help="Inferred from --url. reviews is refused with the "
                         "reason: its API answers POST only.")
-    p.add_argument("--pages", type=int, default=1,
+    p.add_argument("--pages", type=page_flow.bounded(int, 1, "--pages"), default=1,
                    help="Listing pages to fetch (default 1). Each is a "
                         "separate billable task.")
-    p.add_argument("--delay", type=float, default=1.0,
+    p.add_argument("--delay", type=page_flow.bounded(float, 0, "--delay"), default=1.0,
                    help="Seconds between pages (default 1.0)")
     p.add_argument("--format", choices=["json", "csv", "both"], default="both")
     p.add_argument("--out", default="goodreads_rows_scraperapi", help="Output file prefix")
@@ -342,10 +343,10 @@ def parse_args():
                       help="Wait for a page load state instead of specific content")
     p.add_argument("--allow-empty", action="store_true",
                    help="Write output files even when 0 rows were parsed.")
-    p.add_argument("--retries", type=int, default=1,
+    p.add_argument("--retries", type=page_flow.bounded(int, 0, "--retries"), default=1,
                    help="Extra attempts if a WAF page comes back. Each attempt is "
                         "a separate billable task, so this defaults to 1.")
-    p.add_argument("--retry-delay", type=int, default=10,
+    p.add_argument("--retry-delay", type=page_flow.bounded(int, 0, "--retry-delay"), default=10,
                    help="Seconds between retries (default 10)")
     p.add_argument("--dump-html", default=None,
                    help="Also write the page to this path, even on success")
