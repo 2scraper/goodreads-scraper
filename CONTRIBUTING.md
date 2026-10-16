@@ -81,13 +81,12 @@ history needs a decision, not a red check on every push.
 Then the rest of the presentation, in the order that matters:
 
 1. `python3 smoke_test.py` green, and the canary dispatched at least once.
-   It runs daily with no secrets at all and is expected to be green,
+   It runs weekly (Mondays) with no secrets at all and is expected to be green,
    because no mode needs a credential and a green badge there is exactly
    the claim the README makes. If a run is refused for the runner's
    address, the canary's `GOODREADS_PROXY` secret (an exit elsewhere) is
-   used on the weekly (Monday) run and on a manual dispatch, with no
-   workflow edit; the daily run stays on the runner's own address and
-   bills nothing.
+   used on every scheduled run and on a manual dispatch, with no
+   workflow edit.
 2. The repo description, homepage and topics set: the description names
    the site and what it really publishes, the topics are what people search for.
 3. Only then the row in the org profile README — and check it with an

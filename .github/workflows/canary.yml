@@ -1,9 +1,9 @@
-# One real run of each mode against goodreads.com, daily. tests.yml
+# One real run of each mode against goodreads.com, weekly (Mondays). tests.yml
 # (deliberately) never touches the site.
 #
 # No secrets are needed, and that is the point of running it: the README's
 # central claim is "no key, no proxy, no account", and an ungated scheduled
-# canary is that sentence under test every morning.
+# canary is that sentence under test every Monday.
 # Every mode ran from a datacentre VPS when this repo was written
 # (2026-09-27), AWS WAF's challenge included, which the browser passes by
 # itself; a GitHub runner is a datacentre address too. Its first dispatch
@@ -26,10 +26,6 @@ name: canary
 on:
   schedule:
     # 05:40 UTC. Not on the hour: every scheduled workflow fires at :00.
-    - cron: "40 5 * * *"
-    # Mondays: the same jobs, WITH the paid secrets (proxy, Scraping Browser,
-    # captcha key). On the daily run above those secrets read as empty, so
-    # it takes the free no-secret route and bills nothing.
     - cron: "40 5 * * 1"
   workflow_dispatch:
 
@@ -64,7 +60,7 @@ jobs:
             pages: 3
             floor: 85
     env:
-      GOODREADS_PROXY: ${{ (github.event_name != 'schedule' || github.event.schedule == '40 5 * * 1') && secrets.GOODREADS_PROXY || '' }}
+      GOODREADS_PROXY: ${{ secrets.GOODREADS_PROXY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
