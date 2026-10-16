@@ -209,7 +209,7 @@ Surveyed 2026-09-27:
 
 | | reviews | book detail | listings | notes |
 |---|---|---|---|---|
-| **this repo** | every review, by cursor, with rating / language / text filters and three orderings | 44 columns, rating distribution, per-language review counts | lists, authors, search, shelves, series | three engines, exit codes that tell blocked from empty from partial, run sidecar, daily canary |
+| **this repo** | every review, by cursor, with rating / language / text filters and three orderings | 44 columns, rating distribution, per-language review counts | lists, authors, search, shelves, series | three engines, exit codes that tell blocked from empty from partial, run sidecar, weekly canary |
 | [maria-antoniak/goodreads-scraper](https://github.com/maria-antoniak/goodreads-scraper) | capped at 300 | yes | shelves | its README says it no longer works since the redesign |
 | [havanagrawal/GoodreadsScraper](https://github.com/havanagrawal/GoodreadsScraper) | no | yes | lists, authors | Scrapy; last push 2024 |
 | [Apify epctex/goodreads-scraper](https://apify.com/epctex/goodreads-scraper) | optional | yes | search, list, genre, author, shelf | $15/month rental plus compute |
@@ -268,7 +268,7 @@ key refused and re-read, a refused parameter, a language the book has no
 reviews in, a throttle, and a book run from a listing with one book refused.
 
 The [canary](.github/workflows/canary.yml) runs a real scrape of each mode
-daily **with no secrets**, which is what keeps "no account needed" honest.
+weekly (Mondays) **with no secrets**, which is what keeps "no account needed" honest.
 Its first dispatch (2026-09-27, a GitHub-hosted runner, no proxy, region not
 checked) came back complete in all three modes: 300 of 79,610 books on the
 Best Books Ever list, 5 books of the Lord of the Rings series with their
