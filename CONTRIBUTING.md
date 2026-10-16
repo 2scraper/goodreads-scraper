@@ -85,7 +85,9 @@ Then the rest of the presentation, in the order that matters:
    because no mode needs a credential and a green badge there is exactly
    the claim the README makes. If a run is refused for the runner's
    address, the canary's `GOODREADS_PROXY` secret (an exit elsewhere) is
-   the fix, with no workflow edit.
+   used on the weekly (Monday) run and on a manual dispatch, with no
+   workflow edit; the daily run stays on the runner's own address and
+   bills nothing.
 2. The repo description, homepage and topics set: the description names
    the site and what it really publishes, the topics are what people search for.
 3. Only then the row in the org profile README — and check it with an
