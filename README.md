@@ -1,4 +1,4 @@
-# goodreads-scraper
+# Goodreads Scraper — Books, Lists and Community Reviews in Python
 
 [![release](https://img.shields.io/github/v/release/2scraper/goodreads-scraper)](https://github.com/2scraper/goodreads-scraper/releases)
 [![tests](https://github.com/2scraper/goodreads-scraper/actions/workflows/tests.yml/badge.svg)](https://github.com/2scraper/goodreads-scraper/actions/workflows/tests.yml)
@@ -7,6 +7,8 @@
 [![licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 ![engines](https://img.shields.io/badge/engines-playwright%20%7C%20selenium%20%7C%20pyppeteer-lightgrey)
 ![runs without an account](https://img.shields.io/badge/all%20three%20modes-no%20account%20needed-brightgreen)
+
+**Goodreads scraper** — an open-source (MIT) Python tool that reads goodreads.com lists, author pages, searches, shelves, series, book pages and community reviews and writes books or reviews — ratings, authors, editions, genres, review text and stars — to JSON or CSV. Measured on 2026-09-27 from a datacentre VPS, no key, proxy or account was needed for any mode, though a search answered HTTP 403 to headless Chromium and was served headful. Use it to build a book or review dataset, or compare two runs of the same query with the included diff tool.
 
 Scrapes [goodreads.com](https://www.goodreads.com) into JSON and CSV. The
 site retired its public API in December 2020; this reads what its pages show
@@ -289,3 +291,20 @@ jurisdiction are your responsibility as the operator. `--delay` defaults to
 1 second between pages.
 
 MIT licensed. Not affiliated with or endorsed by Goodreads or Amazon.
+
+## Guides
+
+- [How to run the 2scraper scrapers: setup, proxies, exit codes and access modes](https://2captcha.com/h/how-to-run-2scraper-open-source-scrapers) — installation, `.env`, `.meta.json` for the whole family.
+
+## Related scrapers
+
+Same CLI conventions, same output contract (one row per item, JSON or CSV, a `.meta.json` sidecar and shared exit codes):
+
+- [Hacker News scraper](https://github.com/2scraper/hackernews-scraper) — Story lists, whole comment trees and profiles from Hacker…
+- [Medium scraper](https://github.com/2scraper/medium-scraper) — Tag feeds, day archives, author pages and full story text…
+- [Perplexity scraper](https://github.com/2scraper/perplexity-scraper) — Pages and Discover articles
+- [Quora scraper](https://github.com/2scraper/quora-scraper) — Answers from question pages, topic feeds and profiles…
+- [Instagram scraper](https://github.com/2scraper/instagram-scraper) — Public profiles, posts and Reels, read logged out
+- [Snapchat scraper](https://github.com/2scraper/snapchat-scraper) — Public Snapchat profiles, Spotlight engagement and story…
+
+All scrapers: [github.com/2scraper](https://github.com/2scraper) · Need another site? [Open a request](https://github.com/2scraper/.github/issues/new?title=%5BScraper%20request%5D%20)
